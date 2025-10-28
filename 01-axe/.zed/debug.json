@@ -1,0 +1,35 @@
+[
+  {
+    "label": "Debug Game",
+    "build": {
+      "command": "cmake",
+      "args": ["-B", "build", "-DCMAKE_BUILD_TYPE=Debug"],
+      "cwd": "$ZED_WORKTREE_ROOT"
+    },
+    "program": "$ZED_WORKTREE_ROOT/build/mygame",
+    "request": "launch",
+    "adapter": "CodeLLDB"
+  },
+  {
+    "label": "Build and Debug Game",
+    "build": {
+      "command": "cmake",
+      "args": ["--build", "build", "--config", "Debug"],
+      "cwd": "$ZED_WORKTREE_ROOT"
+    },
+    "program": "$ZED_WORKTREE_ROOT/build/mygame",
+    "request": "launch",
+    "adapter": "CodeLLDB"
+  },
+  {
+    "label": "Debug Game (GDB)",
+    "build": {
+      "command": "cmake",
+      "args": ["-B", "build", "-DCMAKE_BUILD_TYPE=Debug"],
+      "cwd": "$ZED_WORKTREE_ROOT"
+    },
+    "program": "$ZED_WORKTREE_ROOT/build/mygame",
+    "request": "launch",
+    "adapter": "gdb"
+  }
+]
