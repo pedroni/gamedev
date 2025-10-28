@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/Users/macbook/projects/gamedev/01-axe/build",
+  "command": "/usr/bin/c++  -I/opt/homebrew/Cellar/raylib/5.5/include -F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks -std=gnu++17 -arch arm64 -o CMakeFiles/mygame.dir/main.cpp.o -c /Users/macbook/projects/gamedev/01-axe/main.cpp",
+  "file": "/Users/macbook/projects/gamedev/01-axe/main.cpp",
+  "output": "CMakeFiles/mygame.dir/main.cpp.o"
+}
+]
