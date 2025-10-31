@@ -1,0 +1,19 @@
+[
+  {
+    "label": "configure",
+    "command": "cmake -B build -S .",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "tags": ["build"]
+  },
+  {
+    "label": "build and run",
+    "command": "cmake --build build && ./build/mygame",
+    "use_new_terminal": false,
+    "reveal": "no_focus",
+    "hide": "never",
+    "show_summary": true,
+    "show_command": true,
+    "tags": ["build"]
+  }
+]
