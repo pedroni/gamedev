@@ -1,4 +1,7 @@
 #include "raylib.h"
+#include <array>
+#include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <ostream>
 #include <vector>
@@ -47,7 +50,6 @@ public:
 
     textureScale_ = ((float)screenWidth / texture_.width);
     scaledWidth_ = texture_.width * textureScale_;
-    std::cout << "####the scaled width" << scaledWidth_ << std::endl;
 
     velocity_ = velocity;
   }
@@ -79,6 +81,7 @@ private:
   float initialPosX = 0;
 
 public:
+  bool colliding = false;
   Rectangle destRect;
   Fireball(int velocity, int posOffsetX, int posOffsetY) : velocity_(velocity) {
 
@@ -113,7 +116,7 @@ public:
 };
 
 int main() {
-
+  std::srand(std::time(nullptr));
   std::vector<Entity *> entities;
 
   InitWindow(screenWidth, screenHeight, "Dapper Dasher");
@@ -121,9 +124,21 @@ int main() {
 
   Sound backgroundSound = LoadSound("./assets/ridiculousgravewalk.ogg");
   Sound jumpLandingSound = LoadSound("./assets/jump_landing.mp3");
-  Sound deathGrunt = LoadSound("./assets/death_grunt.wav");
   SetSoundVolume(backgroundSound, 0.8);
   // PlaySound(backgroundSound);
+
+  Music grunts = LoadMusicStream("./assets/grunts.wav");
+
+  std::array<float, 2> deathGrunt = {0.5, 1.8};
+
+  const int HURT_GRUNT_SIZE = 2;
+  std::array<std::array<float, 2>, HURT_GRUNT_SIZE> hurtGrunts;
+  hurtGrunts[0] = {39, 0.5};
+  hurtGrunts[1] = {7, 0.5};
+
+  std::array<float, 2> playingGrunt = hurtGrunts[0];
+
+  float gruntPlayedAt = elapsed;
 
   // Move the window to the right side of the monitor
   int monitor = GetCurrentMonitor();
@@ -185,7 +200,7 @@ int main() {
 
   // renders the hero in in the middle of the screen
   Rectangle heroPos;
-  heroPos.x = (static_cast<float>(screenWidth) / 2) - (heroRect.width / 2);
+  heroPos.x = 120;
   heroPos.y = screenHeight - heroRect.height * heroScale - 40;
   heroPos.width = heroRect.width * heroScale;
   heroPos.height = heroRect.height * heroScale;
@@ -193,12 +208,13 @@ int main() {
   Rectangle heroCollidingRect{heroPos.x + 50, heroPos.y + heroPos.width,
                               heroPos.width / 5, heroPos.height / 2};
 
+  bool dead = false;
   Rectangle heroRectHealth{20, 20, 200, 5};
 
   const float groundPos = heroPos.y;
 
-  Fireball fireOne{-600, 1400, 0};
-  Fireball fireTwo{-600, 2000, 0};
+  Fireball fireOne{-600, 400, 0};
+  Fireball fireTwo{-600, 1000, 0};
   entities.push_back(&fireOne);
   entities.push_back(&fireTwo);
 
@@ -208,6 +224,8 @@ int main() {
     // time since last frame
     double dT = GetFrameTime();
     elapsed += dT;
+
+    UpdateMusicStream(grunts);
 
     BeginDrawing();
 
@@ -240,16 +258,14 @@ int main() {
       // iteration whenever the character is on the air
       velocityY += gravity * dT;
 
-      std::cout << velocityY << std::endl;
-
       // play jumping sound, there's some seconds in the beggining of the audio
       // so we can just straight play it, when the characters falls it plays at
       // the exact time.
       PlaySound(jumpLandingSound);
     }
 
-    // can only jump when on the ground
-    if (onTheGround && IsKeyDown(KEY_SPACE)) {
+    // can only jump when on the ground and not dead
+    if (!dead && onTheGround && IsKeyDown(KEY_SPACE)) {
       velocityY += jumpingVelocity;
       std::cout << "triggered jump" << std::endl;
     }
@@ -264,17 +280,43 @@ int main() {
                    (static_cast<int>(elapsed / (1.0 / 4)) % textureRunSprites);
     }
     // end update animation frame of hero
-
     for (auto &entity : entities) {
-      Fireball *fireball = dynamic_cast<Fireball *>(entity);
-      if (fireball != nullptr) {
-        if (isColliding(fireball->destRect, heroCollidingRect)) {
-          std::cout << "collided!" << std::endl;
-          heroRectHealth.width -= 10;
+
+      if (!dead) {
+
+        Fireball *fireball = dynamic_cast<Fireball *>(entity);
+
+        if (fireball != nullptr) {
+
+          if (isColliding(fireball->destRect, heroCollidingRect)) {
+            if (!fireball->colliding) {
+              // do the damager when first collided, which means the flag wasnt
+              // set to true yet. once it collided it's set to true, then it
+              // goes back to false when it stops colliding
+              heroRectHealth.width -= 100;
+
+              // find a random grunt each time
+              playingGrunt = hurtGrunts[std::rand() % (HURT_GRUNT_SIZE)];
+              gruntPlayedAt = elapsed;
+              SeekMusicStream(grunts, playingGrunt[0]);
+              PlayMusicStream(grunts);
+            }
+            fireball->colliding = true;
+          } else {
+            if (gruntPlayedAt > 0 &&
+                elapsed - gruntPlayedAt >= playingGrunt[1]) {
+              // if grunt ever played when it finishes colliding we need to stop
+              // the music
+              StopMusicStream(grunts);
+              gruntPlayedAt = 0;
+            }
+            fireball->colliding = false;
+          }
         }
+
+        entity->update(dT);
       }
 
-      entity->update(dT);
       entity->draw();
     }
 
@@ -283,10 +325,29 @@ int main() {
     DrawRectangleLines(heroCollidingRect.x, heroCollidingRect.y,
                        heroCollidingRect.width, heroCollidingRect.height, RED);
 
+    // draw health bar
     DrawRectangle(heroRectHealth.x, heroRectHealth.y, heroRectHealth.width,
                   heroRectHealth.height, RED);
     DrawRectangle(heroRectHealth.x, heroRectHealth.y + heroRectHealth.height,
                   heroRectHealth.width, heroRectHealth.height, MAROON);
+
+    if (heroRectHealth.width <= 0) {
+      if (!dead) {
+        playingGrunt = deathGrunt;
+        SeekMusicStream(grunts, playingGrunt[0]);
+        PlayMusicStream(grunts);
+        gruntPlayedAt = elapsed;
+        dead = true;
+      }
+      if (gruntPlayedAt > 0 && elapsed - gruntPlayedAt >= playingGrunt[1]) {
+        std::cout << "stop death grunt" << std::endl;
+        StopMusicStream(grunts);
+        gruntPlayedAt = 0;
+      }
+
+      DrawText("GAME OVER", (screenWidth / 2) - 128, screenHeight / 2, 40,
+               MAROON);
+    }
 
     EndDrawing();
   }
