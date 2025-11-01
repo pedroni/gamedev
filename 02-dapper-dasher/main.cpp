@@ -75,11 +75,11 @@ private:
   int velocity_ = -500;
   int spriteFrameCount_ = 5;
   Rectangle srcRect_;
-  Rectangle destRect_;
   float initialPosY = 0;
   float initialPosX = 0;
 
 public:
+  Rectangle destRect;
   Fireball(int velocity, int posOffsetX, int posOffsetY) : velocity_(velocity) {
 
     srcRect_.width = (float)textureFire.width / spriteFrameCount_;
@@ -90,16 +90,16 @@ public:
     initialPosX = screenWidth + posOffsetX;
     initialPosY = screenHeight - (40 + posOffsetY) * 2.5;
 
-    destRect_.x = initialPosX;
-    destRect_.y = initialPosY;
-    destRect_.width = srcRect_.width * 2.5;
-    destRect_.height = srcRect_.height * 2.5;
+    destRect.x = initialPosX;
+    destRect.y = initialPosY;
+    destRect.width = srcRect_.width * 2.5;
+    destRect.height = srcRect_.height * 2.5;
   }
 
   void update(const double dT) override {
-    destRect_.x += velocity_ * dT;
-    if (destRect_.x < -destRect_.width) {
-      destRect_.x = initialPosX;
+    destRect.x += velocity_ * dT;
+    if (destRect.x < -destRect.width) {
+      destRect.x = initialPosX;
     }
 
     // 1/8 means 8 changes every second
@@ -108,7 +108,7 @@ public:
   }
 
   void draw() override {
-    DrawTexturePro(textureFire, srcRect_, destRect_, Vector2{0, 0}, 0, WHITE);
+    DrawTexturePro(textureFire, srcRect_, destRect, Vector2{0, 0}, 0, WHITE);
   }
 };
 
@@ -123,7 +123,7 @@ int main() {
   Sound jumpLandingSound = LoadSound("./assets/jump_landing.mp3");
   Sound deathGrunt = LoadSound("./assets/death_grunt.wav");
   SetSoundVolume(backgroundSound, 0.8);
-  PlaySound(backgroundSound);
+  // PlaySound(backgroundSound);
 
   // Move the window to the right side of the monitor
   int monitor = GetCurrentMonitor();
@@ -190,13 +190,15 @@ int main() {
   heroPos.width = heroRect.width * heroScale;
   heroPos.height = heroRect.height * heroScale;
 
-  Rectangle heroCollidingRect{heroPos.x, heroPos.y + heroRect.width,
-                              heroRect.width, heroRect.height};
+  Rectangle heroCollidingRect{heroPos.x + 50, heroPos.y + heroPos.width,
+                              heroPos.width / 5, heroPos.height / 2};
+
+  Rectangle heroRectHealth{20, 20, 200, 5};
 
   const float groundPos = heroPos.y;
 
-  Fireball fireOne{-600, 300, 0};
-  Fireball fireTwo{-600, 600, 0};
+  Fireball fireOne{-600, 1400, 0};
+  Fireball fireTwo{-600, 2000, 0};
   entities.push_back(&fireOne);
   entities.push_back(&fireTwo);
 
@@ -264,15 +266,27 @@ int main() {
     // end update animation frame of hero
 
     for (auto &entity : entities) {
+      Fireball *fireball = dynamic_cast<Fireball *>(entity);
+      if (fireball != nullptr) {
+        if (isColliding(fireball->destRect, heroCollidingRect)) {
+          std::cout << "collided!" << std::endl;
+          heroRectHealth.width -= 10;
+        }
+      }
+
       entity->update(dT);
       entity->draw();
     }
 
-    heroCollidingRect.y = heroPos.y + heroPos.height / heroScale;
-    heroCollidingRect.x = heroPos.x;
+    heroCollidingRect.y = heroPos.y + heroPos.height / 2;
     DrawTexturePro(textureWalk, heroRect, heroPos, Vector2{0, 0}, 0.0, WHITE);
     DrawRectangleLines(heroCollidingRect.x, heroCollidingRect.y,
                        heroCollidingRect.width, heroCollidingRect.height, RED);
+
+    DrawRectangle(heroRectHealth.x, heroRectHealth.y, heroRectHealth.width,
+                  heroRectHealth.height, RED);
+    DrawRectangle(heroRectHealth.x, heroRectHealth.y + heroRectHealth.height,
+                  heroRectHealth.width, heroRectHealth.height, MAROON);
 
     EndDrawing();
   }
