@@ -74,16 +74,16 @@ public:
 class Fireball : public Entity {
 
 private:
-  int velocity_ = -500;
   int spriteFrameCount_ = 5;
   Rectangle srcRect_;
   float initialPosY = 0;
   float initialPosX = 0;
 
 public:
+  int velocity = -500;
   bool colliding = false;
   Rectangle destRect;
-  Fireball(int velocity, int posOffsetX, int posOffsetY) : velocity_(velocity) {
+  Fireball(int velocity, int posOffsetX, int posOffsetY) : velocity(velocity) {
 
     srcRect_.width = (float)textureFire.width / spriteFrameCount_;
     srcRect_.height = textureFire.height;
@@ -100,7 +100,7 @@ public:
   }
 
   void update(const double dT) override {
-    destRect.x += velocity_ * dT;
+    destRect.x += velocity * dT;
     if (destRect.x < -destRect.width) {
       destRect.x = initialPosX;
     }
@@ -125,7 +125,7 @@ int main() {
   Sound backgroundSound = LoadSound("./assets/ridiculousgravewalk.ogg");
   Sound jumpLandingSound = LoadSound("./assets/jump_landing.mp3");
   SetSoundVolume(backgroundSound, 0.8);
-  // PlaySound(backgroundSound);
+  PlaySound(backgroundSound);
 
   Music grunts = LoadMusicStream("./assets/grunts.wav");
 
@@ -188,7 +188,11 @@ int main() {
   Texture2D textureRun = LoadTexture("./assets/hero/Run.png");
   int textureRunSprites = 7;
 
+  Texture2D textureDead = LoadTexture("./assets/hero/Dead.png");
+  int textureDeadSprites = 6;
+
   Texture2D textureJump = LoadTexture("./assets/hero/Jump.png");
+  int textureJumpSprites = 6;
 
   Rectangle heroRect;
   heroRect.x = 0;
@@ -264,30 +268,46 @@ int main() {
       PlaySound(jumpLandingSound);
     }
 
-    // can only jump when on the ground and not dead
-    if (!dead && onTheGround && IsKeyDown(KEY_SPACE)) {
-      velocityY += jumpingVelocity;
-      std::cout << "triggered jump" << std::endl;
+    if (!dead) {
+      // can only jump when on the ground
+      if (onTheGround && IsKeyDown(KEY_SPACE)) {
+        velocityY += jumpingVelocity;
+        std::cout << "triggered jump" << std::endl;
+      }
+
+      // resets animation so that jump can start
+      heroRect.x = 0;
     }
 
+    // update animation frame of hero
+    if (onTheGround) {
+      if (dead) {
+        // if statement makes it stop changing the x after it reached the last
+        // sprite from the spritesheet
+        if (heroRect.x < heroRect.width * (textureDeadSprites - 1)) {
+          heroRect.x = heroRect.width * (static_cast<int>(elapsed / (1.0 / 4)) %
+                                         textureDeadSprites);
+        }
+      } else {
+        heroRect.x = heroRect.width * (static_cast<int>(elapsed / (1.0 / 4)) %
+                                       textureRunSprites);
+      }
+    } else {
+      // jumping sprite
+      heroRect.x = heroRect.width *
+                   (static_cast<int>(elapsed / (1.0 / 5)) % textureJumpSprites);
+    }
     // changes the position based off the velocity, velocity is hwo much we
     // change the position in time by frames
     heroPos.y += velocityY * dT;
 
-    // update animation frame of hero
-    if (onTheGround) {
-      heroRect.x = heroRect.width *
-                   (static_cast<int>(elapsed / (1.0 / 4)) % textureRunSprites);
-    }
     // end update animation frame of hero
     for (auto &entity : entities) {
 
+      Fireball *fireball = dynamic_cast<Fireball *>(entity);
+
       if (!dead) {
-
-        Fireball *fireball = dynamic_cast<Fireball *>(entity);
-
         if (fireball != nullptr) {
-
           if (isColliding(fireball->destRect, heroCollidingRect)) {
             if (!fireball->colliding) {
               // do the damager when first collided, which means the flag wasnt
@@ -315,15 +335,31 @@ int main() {
         }
 
         entity->update(dT);
+      } else {
+        if (fireball != nullptr) {
+          fireball->velocity = 0;
+          fireball->destRect.y = -80;
+        }
       }
 
       entity->draw();
     }
 
     heroCollidingRect.y = heroPos.y + heroPos.height / 2;
-    DrawTexturePro(textureWalk, heroRect, heroPos, Vector2{0, 0}, 0.0, WHITE);
-    DrawRectangleLines(heroCollidingRect.x, heroCollidingRect.y,
-                       heroCollidingRect.width, heroCollidingRect.height, RED);
+
+    Texture2D heroTexture;
+    if (dead) {
+      heroTexture = textureDead;
+    } else if (!onTheGround) {
+      heroTexture = textureJump;
+    } else {
+      heroTexture = textureWalk;
+    }
+
+    DrawTexturePro(heroTexture, heroRect, heroPos, Vector2{0, 0}, 0.0, WHITE);
+    // DrawRectangleLines(heroCollidingRect.x, heroCollidingRect.y,
+    //                    heroCollidingRect.width, heroCollidingRect.height,
+    //                    RED);
 
     // draw health bar
     DrawRectangle(heroRectHealth.x, heroRectHealth.y, heroRectHealth.width,
@@ -337,10 +373,15 @@ int main() {
         SeekMusicStream(grunts, playingGrunt[0]);
         PlayMusicStream(grunts);
         gruntPlayedAt = elapsed;
+
+        // dead sprite reset to 0
+        heroRect.x = 0;
+
         dead = true;
       }
+
+      // after certain time passed after grunt play sound
       if (gruntPlayedAt > 0 && elapsed - gruntPlayedAt >= playingGrunt[1]) {
-        std::cout << "stop death grunt" << std::endl;
         StopMusicStream(grunts);
         gruntPlayedAt = 0;
       }
