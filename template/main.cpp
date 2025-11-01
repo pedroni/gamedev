@@ -6,7 +6,7 @@ int main() {
   int price;
   price = 20;
   price = 25;
-  InitWindow(screenWidth, screenHeight, "01-axe Game");
+  InitWindow(screenWidth, screenHeight, "template");
 
   SetTargetFPS(60);
 

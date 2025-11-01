@@ -3,7 +3,7 @@
   "lsp": {
     "clangd": {
       "binary": {
-        "arguments": ["--function-arg-placeholders=0"]
+        "arguments": []
       }
     }
   }
