@@ -1,5 +1,6 @@
 #include "raylib.h"
 #include <iostream>
+#include <ostream>
 #include <vector>
 
 const int screenWidth = 800;
@@ -7,6 +8,17 @@ const int screenHeight = 450;
 double elapsed = 0;
 
 Texture2D textureFire;
+
+bool isColliding(const Rectangle &A, const Rectangle &B) {
+  bool xOverlap = A.x + A.width > B.x && B.x + B.width > A.x;
+  bool yOverlap = A.y + A.height > B.y && B.y + B.height > A.y;
+
+  if (xOverlap && yOverlap) {
+    return true;
+  }
+
+  return false;
+}
 
 class Entity {
 public:
@@ -105,6 +117,13 @@ int main() {
   std::vector<Entity *> entities;
 
   InitWindow(screenWidth, screenHeight, "Dapper Dasher");
+  InitAudioDevice();
+
+  Sound backgroundSound = LoadSound("./assets/ridiculousgravewalk.ogg");
+  Sound jumpLandingSound = LoadSound("./assets/jump_landing.mp3");
+  Sound deathGrunt = LoadSound("./assets/death_grunt.wav");
+  SetSoundVolume(backgroundSound, 0.8);
+  PlaySound(backgroundSound);
 
   // Move the window to the right side of the monitor
   int monitor = GetCurrentMonitor();
@@ -165,9 +184,14 @@ int main() {
   const int jumpingVelocity = -400 * heroScale;
 
   // renders the hero in in the middle of the screen
-  Vector2 heroPos;
+  Rectangle heroPos;
   heroPos.x = (static_cast<float>(screenWidth) / 2) - (heroRect.width / 2);
   heroPos.y = screenHeight - heroRect.height * heroScale - 40;
+  heroPos.width = heroRect.width * heroScale;
+  heroPos.height = heroRect.height * heroScale;
+
+  Rectangle heroCollidingRect{heroPos.x, heroPos.y + heroRect.width,
+                              heroRect.width, heroRect.height};
 
   const float groundPos = heroPos.y;
 
@@ -213,6 +237,13 @@ int main() {
       // ... and so on. Gravity is 1 and it increases velocity on every
       // iteration whenever the character is on the air
       velocityY += gravity * dT;
+
+      std::cout << velocityY << std::endl;
+
+      // play jumping sound, there's some seconds in the beggining of the audio
+      // so we can just straight play it, when the characters falls it plays at
+      // the exact time.
+      PlaySound(jumpLandingSound);
     }
 
     // can only jump when on the ground
@@ -237,10 +268,11 @@ int main() {
       entity->draw();
     }
 
-    DrawTexturePro(textureWalk, heroRect,
-                   Rectangle{heroPos.x, heroPos.y, heroRect.width * heroScale,
-                             heroRect.height * heroScale},
-                   Vector2{0, 0}, 0.0, WHITE);
+    heroCollidingRect.y = heroPos.y + heroPos.height / heroScale;
+    heroCollidingRect.x = heroPos.x;
+    DrawTexturePro(textureWalk, heroRect, heroPos, Vector2{0, 0}, 0.0, WHITE);
+    DrawRectangleLines(heroCollidingRect.x, heroCollidingRect.y,
+                       heroCollidingRect.width, heroCollidingRect.height, RED);
 
     EndDrawing();
   }
