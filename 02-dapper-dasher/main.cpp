@@ -8,40 +8,101 @@ double elapsed = 0;
 
 Texture2D textureFire;
 
-class Fireball {
+class Entity {
+public:
+  Entity() {}
+
+  virtual void update(double dT) {}
+  virtual void draw() {}
+};
+
+class Background : public Entity {
+
+private:
+  Texture2D texture_;
+  float textureScale_{0.0};
+  float scaledWidth_{0};
+  int velocity_;
+
+  Vector2 firstPos_{0, 0};
+  Vector2 secondPos_{0, 0};
+
+  float xPos_{0};
+
+public:
+  Background(Texture2D texture, int velocity) {
+    texture_ = texture;
+
+    textureScale_ = ((float)screenWidth / texture_.width);
+    scaledWidth_ = texture_.width * textureScale_;
+    std::cout << "####the scaled width" << scaledWidth_ << std::endl;
+
+    velocity_ = velocity;
+  }
+
+  void update(double dT) override {
+    xPos_ -= velocity_ * dT;
+
+    if (xPos_ <= -scaledWidth_) {
+      xPos_ = 0;
+    }
+
+    firstPos_.x = xPos_;
+    secondPos_.x = xPos_ + scaledWidth_;
+  }
+
+  void draw() override {
+    DrawTextureEx(texture_, firstPos_, 0.0, textureScale_, WHITE);
+    DrawTextureEx(texture_, secondPos_, 0.0, textureScale_, WHITE);
+  }
+};
+
+class Fireball : public Entity {
 
 private:
   int velocity_ = -500;
   int spriteFrameCount_ = 5;
-  Rectangle rect_;
-  Vector2 pos_;
+  Rectangle srcRect_;
+  Rectangle destRect_;
+  float initialPosY = 0;
+  float initialPosX = 0;
 
 public:
   Fireball(int velocity, int posOffsetX, int posOffsetY) : velocity_(velocity) {
 
-    rect_.width = (float)textureFire.width / spriteFrameCount_;
-    rect_.height = textureFire.height;
-    rect_.x = 0;
-    rect_.y = 0;
-    pos_.x = screenWidth + posOffsetX;
-    pos_.y = screenHeight - (30 + posOffsetY);
+    srcRect_.width = (float)textureFire.width / spriteFrameCount_;
+    srcRect_.height = textureFire.height;
+    srcRect_.x = 0;
+    srcRect_.y = 0;
+
+    initialPosX = screenWidth + posOffsetX;
+    initialPosY = screenHeight - (40 + posOffsetY) * 2.5;
+
+    destRect_.x = initialPosX;
+    destRect_.y = initialPosY;
+    destRect_.width = srcRect_.width * 2.5;
+    destRect_.height = srcRect_.height * 2.5;
   }
 
-  void update(const double dT) {
-    pos_.x += velocity_ * dT;
-    if (pos_.x < -rect_.width) {
-      pos_.x = screenWidth;
+  void update(const double dT) override {
+    destRect_.x += velocity_ * dT;
+    if (destRect_.x < -destRect_.width) {
+      destRect_.x = initialPosX;
     }
 
     // 1/8 means 8 changes every second
-    rect_.x = rect_.width *
-              (static_cast<int>(elapsed / (1.0 / 8)) % spriteFrameCount_);
+    srcRect_.x = srcRect_.width *
+                 (static_cast<int>(elapsed / (1.0 / 12)) % spriteFrameCount_);
   }
 
-  void draw() { DrawTextureRec(textureFire, rect_, pos_, WHITE); }
+  void draw() override {
+    DrawTexturePro(textureFire, srcRect_, destRect_, Vector2{0, 0}, 0, WHITE);
+  }
 };
 
 int main() {
+
+  std::vector<Entity *> entities;
 
   InitWindow(screenWidth, screenHeight, "Dapper Dasher");
 
@@ -55,13 +116,37 @@ int main() {
 
   textureFire = LoadTexture("./assets/fireball-sheet.png");
 
+  Texture2D textureSky = LoadTexture("./assets/background/sky.png");
+
+  // 800 / 1920 = ~0.41, before i had the value hardcoded but we can make it
+  // dynamic since we know the screen width and the texture width
+  const float skyScale = (float)screenWidth / textureSky.width;
+
+  Texture2D textureGraves = LoadTexture("./assets/background/graves.png");
+
+  Background bgSky{textureSky, 20};
+  Background gravesBg{textureGraves, 30};
+  Background backTreesBg{LoadTexture("./assets/background/back_trees.png"), 40};
+  Background cryptBg{LoadTexture("./assets/background/crypt.png"), 45};
+  Background wallBg{LoadTexture("./assets/background/wall.png"), 50};
+  Background groundBg{LoadTexture("./assets/background/ground.png"), 100};
+  Background treeBg{LoadTexture("./assets/background/tree.png"), 100};
+  Background bonesBg{LoadTexture("./assets/background/bones.png"), 100};
+  entities.push_back(&bgSky);
+  entities.push_back(&gravesBg);
+  entities.push_back(&backTreesBg);
+  entities.push_back(&cryptBg);
+  entities.push_back(&wallBg);
+  entities.push_back(&groundBg);
+  entities.push_back(&treeBg);
+  entities.push_back(&bonesBg);
+
   // acceleration due to gravity (pixel/second)/second
-  const int gravity = 3000;
+  const int gravity = 3400;
 
   double velocityY = 0;
 
   // velocity pixel/second
-  const int jumpingVelocity = -800;
 
   Texture2D textureWalk = LoadTexture("./assets/hero/Walk.png");
   int textureWalkSprites = 8;
@@ -76,18 +161,20 @@ int main() {
   heroRect.y = 0;
   heroRect.width = static_cast<float>(textureWalk.width) / textureWalkSprites;
   heroRect.height = textureWalk.height;
+  const float heroScale = 2.5;
+  const int jumpingVelocity = -400 * heroScale;
 
   // renders the hero in in the middle of the screen
   Vector2 heroPos;
   heroPos.x = (static_cast<float>(screenWidth) / 2) - (heroRect.width / 2);
-  heroPos.y = screenHeight - heroRect.height - 10;
+  heroPos.y = screenHeight - heroRect.height * heroScale - 40;
 
   const float groundPos = heroPos.y;
 
-  std::vector<Fireball> fireballs;
-  fireballs.push_back(Fireball(-300, 0, 0));
-  fireballs.push_back(Fireball(-300, 200, 0));
-  fireballs.push_back(Fireball(-400, 500, 30));
+  Fireball fireOne{-600, 300, 0};
+  Fireball fireTwo{-600, 600, 0};
+  entities.push_back(&fireOne);
+  entities.push_back(&fireTwo);
 
   SetTargetFPS(60);
   // Main game loop
@@ -99,8 +186,6 @@ int main() {
     BeginDrawing();
 
     ClearBackground(RAYWHITE);
-
-    // std::cout << posY << std::endl;
 
     bool onTheGround = heroPos.y >= groundPos;
 
@@ -143,16 +228,19 @@ int main() {
     // update animation frame of hero
     if (onTheGround) {
       heroRect.x = heroRect.width *
-                   (static_cast<int>(elapsed / (1.0 / 8)) % textureRunSprites);
+                   (static_cast<int>(elapsed / (1.0 / 4)) % textureRunSprites);
     }
     // end update animation frame of hero
 
-    DrawTextureRec(textureWalk, heroRect, heroPos, WHITE);
-
-    for (auto &fireball : fireballs) {
-      fireball.update(dT);
-      fireball.draw();
+    for (auto &entity : entities) {
+      entity->update(dT);
+      entity->draw();
     }
+
+    DrawTexturePro(textureWalk, heroRect,
+                   Rectangle{heroPos.x, heroPos.y, heroRect.width * heroScale,
+                             heroRect.height * heroScale},
+                   Vector2{0, 0}, 0.0, WHITE);
 
     EndDrawing();
   }
@@ -161,6 +249,8 @@ int main() {
   UnloadTexture(textureWalk);
   UnloadTexture(textureJump);
   UnloadTexture(textureRun);
+  UnloadTexture(textureFire);
+  UnloadTexture(textureSky);
   CloseWindow();
 
   return 0;
