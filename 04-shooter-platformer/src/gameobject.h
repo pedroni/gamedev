@@ -6,15 +6,36 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-enum class ObjectType { player, level, enemy };
+enum class PlayerState { IDLE, WALKING, RUNNING, JUMPING };
+
+struct PlayerData {
+    PlayerState state;
+    PlayerData() { state = PlayerState::IDLE; }
+};
+
+struct LevelData {};
+struct EnemyData {};
+
+union ObjectData {
+    PlayerData player;
+    EnemyData enemy;
+    LevelData level;
+
+    ObjectData() { player = PlayerData(); }
+};
+
+enum class ObjectType { PLAYER, LEVEL, ENEMY };
 
 // every single object in the game
 struct GameObject {
     ObjectType type;
+    ObjectData data;
+
     glm::vec2 position, velocity, acceleration;
 
     // 1 right, -1 left
     float direction;
+    float maxSpeedX;
 
     std::vector<Animation> animations;
     int currentAnimation;
@@ -22,9 +43,13 @@ struct GameObject {
     SDL_Texture *texture;
 
     GameObject() {
-        type = ObjectType::level;
+        data = ObjectData();
+        type = ObjectType::LEVEL;
 
         direction = 1;
+        // max speed is used here to make sure we dont have infinite acceleration
+        maxSpeedX = 0;
+
         position = velocity = acceleration = glm::vec2(0);
 
         // when -1 it's unset
