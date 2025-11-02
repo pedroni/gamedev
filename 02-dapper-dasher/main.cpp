@@ -99,9 +99,20 @@ public:
     destRect.height = srcRect_.height * 2.5;
   }
 
+  double collidingDuration = 0;
   void update(const double dT) override {
+    if (colliding) {
+      collidingDuration += dT;
+    } else {
+      collidingDuration = 0;
+    }
+
     destRect.x += velocity * dT;
     if (destRect.x < -destRect.width) {
+      destRect.x = initialPosX;
+    }
+
+    if (collidingDuration > 0.15) {
       destRect.x = initialPosX;
     }
 
@@ -111,7 +122,8 @@ public:
   }
 
   void draw() override {
-    DrawTexturePro(textureFire, srcRect_, destRect, Vector2{0, 0}, 0, WHITE);
+    DrawTexturePro(textureFire, srcRect_, destRect, Vector2{0, 0}, 0,
+                   colliding ? BLACK : WHITE);
   }
 };
 
@@ -194,6 +206,9 @@ int main() {
   Texture2D textureJump = LoadTexture("./assets/hero/Jump.png");
   int textureJumpSprites = 6;
 
+  Texture2D textureHurt = LoadTexture("./assets/hero/Hurt.png");
+  int textureHurtSprites = 2;
+
   Rectangle heroRect;
   heroRect.x = 0;
   heroRect.y = 0;
@@ -213,6 +228,7 @@ int main() {
                               heroPos.width / 5, heroPos.height / 2};
 
   bool dead = false;
+  int colliding = 0;
   Rectangle heroRectHealth{20, 20, 200, 5};
 
   const float groundPos = heroPos.y;
@@ -221,6 +237,8 @@ int main() {
   Fireball fireTwo{-600, 1000, 0};
   entities.push_back(&fireOne);
   entities.push_back(&fireTwo);
+
+  Texture2D *heroTexture;
 
   SetTargetFPS(60);
   // Main game loop
@@ -313,13 +331,14 @@ int main() {
               // do the damager when first collided, which means the flag wasnt
               // set to true yet. once it collided it's set to true, then it
               // goes back to false when it stops colliding
-              heroRectHealth.width -= 100;
+              heroRectHealth.width -= 50;
 
               // find a random grunt each time
               playingGrunt = hurtGrunts[std::rand() % (HURT_GRUNT_SIZE)];
               gruntPlayedAt = elapsed;
               SeekMusicStream(grunts, playingGrunt[0]);
               PlayMusicStream(grunts);
+              colliding++;
             }
             fireball->colliding = true;
           } else {
@@ -329,6 +348,7 @@ int main() {
               // the music
               StopMusicStream(grunts);
               gruntPlayedAt = 0;
+              colliding--;
             }
             fireball->colliding = false;
           }
@@ -347,16 +367,17 @@ int main() {
 
     heroCollidingRect.y = heroPos.y + heroPos.height / 2;
 
-    Texture2D heroTexture;
     if (dead) {
-      heroTexture = textureDead;
+      heroTexture = &textureDead;
+    } else if (colliding > 0) {
+      heroTexture = &textureHurt;
     } else if (!onTheGround) {
-      heroTexture = textureJump;
+      heroTexture = &textureJump;
     } else {
-      heroTexture = textureWalk;
+      heroTexture = &textureWalk;
     }
 
-    DrawTexturePro(heroTexture, heroRect, heroPos, Vector2{0, 0}, 0.0, WHITE);
+    DrawTexturePro(*heroTexture, heroRect, heroPos, Vector2{0, 0}, 0.0, WHITE);
     // DrawRectangleLines(heroCollidingRect.x, heroCollidingRect.y,
     //                    heroCollidingRect.width, heroCollidingRect.height,
     //                    RED);
@@ -385,7 +406,8 @@ int main() {
         StopMusicStream(grunts);
         gruntPlayedAt = 0;
       }
-
+      DrawRectangle((screenWidth / 2) - 146, (screenHeight / 2) - 10, 280, 56,
+                    Color{0, 0, 0, 200});
       DrawText("GAME OVER", (screenWidth / 2) - 128, screenHeight / 2, 40,
                MAROON);
     }
