@@ -1,5 +1,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
+#include <SDL3_image/SDL_image.h>
 #include <iostream>
 
 struct SDLState {
@@ -37,6 +38,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    SDL_Texture *idleTexture = IMG_LoadTexture(state.renderer, "./assets/light/Idle.png");
+
+    if (!idleTexture) {
+        std::cerr << "IMG_LoadTexture failed: " << SDL_GetError() << std::endl;
+        cleanup(state);
+        return 1;
+    }
+
     bool running = true;
     SDL_Event event;
 
@@ -58,13 +67,20 @@ int main(int argc, char *argv[]) {
         //
         // perform drawing commands at last
 
-        SDL_SetRenderDrawColor(state.renderer, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(state.renderer, 20, 10, 30, 255);
         SDL_RenderClear(state.renderer);
+
+        SDL_RenderTexture(
+            state.renderer,
+            idleTexture,
+            SDL_FRect{0, 0, (float)idleTexture->w / 7, (float)idleTexture->h},
+            NULL);
 
         // swab buffers and present
         SDL_RenderPresent(state.renderer);
     }
 
+    SDL_DestroyTexture(idleTexture);
     cleanup(state);
     return 0;
 }
