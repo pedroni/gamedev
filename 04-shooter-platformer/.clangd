@@ -1,22 +1,9 @@
 CompileFlags:
-  Add:
-    - -I/opt/homebrew/include
-    - -L/opt/homebrew/lib
-    - -lSDL2
-    - -lSDL2main
-    - -std=c++11
-    - "-Wall"
-    - "-Wextra"
-    - "-Wpedantic"
-    - "-Wunused"
-    - "-Wunused-variable"
-    - "-Wunused-parameter"
-    - "-Wunused-function"
-    - "-Wshadow"
+  CompilationDatabase: build
 
 Diagnostics:
-  UnusedIncludes: Strict
-  MissingIncludes: Strict
+  UnusedIncludes: None
+  MissingIncludes: None
 
 Index:
   Background: Skip

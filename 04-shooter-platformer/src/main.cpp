@@ -17,6 +17,10 @@ int main(int argc, char *argv[]) {
         SDL_Quit();
         return 1;
     }
+    int testing = 0;
+    testing = 5;
+    testing = 10;
+    std::cout << testing << std::endl;
 
     bool running = true;
     SDL_Event event;
