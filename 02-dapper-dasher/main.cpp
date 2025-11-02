@@ -215,7 +215,7 @@ int main() {
   heroRect.width = static_cast<float>(textureWalk.width) / textureWalkSprites;
   heroRect.height = textureWalk.height;
   const float heroScale = 2.5;
-  const int jumpingVelocity = -400 * heroScale;
+  const int jumpingVelocity = -500 * heroScale;
 
   // renders the hero in in the middle of the screen
   Rectangle heroPos;
