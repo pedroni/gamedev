@@ -229,7 +229,8 @@ int main() {
 
   bool dead = false;
   int colliding = 0;
-  Rectangle heroRectHealth{20, 20, 200, 5};
+  const float maxHealth = 300;
+  Rectangle heroRectHealth{20, 20, maxHealth, 5};
 
   const float groundPos = heroPos.y;
 
@@ -243,6 +244,25 @@ int main() {
   SetTargetFPS(60);
   // Main game loop
   while (!WindowShouldClose()) {
+
+    if (dead && IsKeyReleased(KEY_R)) {
+      dead = false;
+      heroRectHealth.width = maxHealth;
+      colliding = 0;
+      heroTexture = &textureWalk;
+      for (auto &entity : entities) {
+
+        Fireball *fireball = dynamic_cast<Fireball *>(entity);
+        if (fireball != nullptr) {
+          fireball->velocity = -600;
+        }
+      }
+    }
+
+    if (!dead && IsKeyPressed(KEY_D)) {
+      heroRectHealth.width = 0;
+    }
+
     // time since last frame
     double dT = GetFrameTime();
     elapsed += dT;
@@ -331,7 +351,7 @@ int main() {
               // do the damager when first collided, which means the flag wasnt
               // set to true yet. once it collided it's set to true, then it
               // goes back to false when it stops colliding
-              heroRectHealth.width -= 50;
+              heroRectHealth.width -= maxHealth * 1 / 3;
 
               // find a random grunt each time
               playingGrunt = hurtGrunts[std::rand() % (HURT_GRUNT_SIZE)];
@@ -348,6 +368,8 @@ int main() {
               // the music
               StopMusicStream(grunts);
               gruntPlayedAt = 0;
+            }
+            if (fireball->colliding) {
               colliding--;
             }
             fireball->colliding = false;
@@ -358,7 +380,6 @@ int main() {
       } else {
         if (fireball != nullptr) {
           fireball->velocity = 0;
-          fireball->destRect.y = -80;
         }
       }
 
@@ -383,6 +404,8 @@ int main() {
     //                    RED);
 
     // draw health bar
+    DrawRectangle(heroRectHealth.x, heroRectHealth.y, maxHealth,
+                  heroRectHealth.height * 2, Color{0, 0, 0, 128});
     DrawRectangle(heroRectHealth.x, heroRectHealth.y, heroRectHealth.width,
                   heroRectHealth.height, RED);
     DrawRectangle(heroRectHealth.x, heroRectHealth.y + heroRectHealth.height,
@@ -406,10 +429,14 @@ int main() {
         StopMusicStream(grunts);
         gruntPlayedAt = 0;
       }
-      DrawRectangle((screenWidth / 2) - 146, (screenHeight / 2) - 10, 280, 56,
+
+      DrawRectangle((screenWidth / 2) - 146, (screenHeight / 2) - 10, 280, 76,
                     Color{0, 0, 0, 200});
       DrawText("GAME OVER", (screenWidth / 2) - 128, screenHeight / 2, 40,
                MAROON);
+
+      DrawText("Press R to restart", (screenWidth / 2) - 78,
+               (screenHeight / 2) + 40, 16, WHITE);
     }
 
     EndDrawing();
