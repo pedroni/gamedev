@@ -5,11 +5,13 @@
 #include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
+#include "animation.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3_image/SDL_image.h>
 #include <cstdint>
 #include <iostream>
+#include <vector>
 
 struct SDLState {
     SDL_Window *window;
@@ -24,6 +26,39 @@ struct SDLState {
 bool initialize(SDLState &state);
 void cleanup(SDLState &state);
 
+struct Resources {
+    const int ANIM_PLAYER_IDLE = 0;
+    std::vector<Animation> playerAnims;
+    std::vector<SDL_Texture *> textures;
+    SDL_Texture *idleTexture;
+
+    SDL_Texture *loadTexture(SDL_Renderer *renderer, const std::string &filePath) {
+        SDL_Texture *texture = IMG_LoadTexture(renderer, filePath.c_str());
+        // this makes the sprite to be streched without "antialiasing"
+        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+
+        if (!texture) {
+            std::cerr << "IMG_LoadTexture failed: " << filePath << SDL_GetError()
+                      << std::endl;
+            return texture;
+        }
+        textures.push_back(texture);
+
+        return texture;
+    }
+
+    void load(SDLState &state) {
+        playerAnims.resize(5);
+        playerAnims[ANIM_PLAYER_IDLE] = Animation(7, 1);
+        idleTexture = loadTexture(state.renderer, "./assets/light/Idle.png");
+    }
+    void unload() {
+        for (auto *texture : textures) {
+            SDL_DestroyTexture(texture);
+        }
+    }
+};
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -35,17 +70,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    SDL_Texture *idleTexture = IMG_LoadTexture(state.renderer, "./assets/light/Idle.png");
-    // this makes the sprite to be streched without "antialiasing"
-    SDL_SetTextureScaleMode(idleTexture, SDL_SCALEMODE_NEAREST);
-
-    if (!idleTexture) {
-        std::cerr << "IMG_LoadTexture failed: " << SDL_GetError() << std::endl;
-        cleanup(state);
-        return 1;
-    }
-
-    float spriteSize = (float)idleTexture->w / 7;
+    // load game assets
+    Resources res;
+    res.load(state);
+    float spriteSize = (float)res.idleTexture->w / 7;
 
     // setup game data
     // keys is used to know which keys are being pressed in our program
@@ -115,7 +143,7 @@ int main(int argc, char *argv[]) {
         SDL_FRect destRect = {playerX, floor - srcRect.h, spriteSize, spriteSize};
         SDL_RenderTextureRotated(
             state.renderer,
-            idleTexture,
+            res.idleTexture,
             &srcRect,
             &destRect,
             0,
@@ -126,7 +154,7 @@ int main(int argc, char *argv[]) {
         SDL_RenderPresent(state.renderer);
     }
 
-    SDL_DestroyTexture(idleTexture);
+    res.unload();
     cleanup(state);
     return 0;
 }
