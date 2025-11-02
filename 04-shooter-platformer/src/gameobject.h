@@ -32,6 +32,6 @@ struct GameObject {
 
         texture = NULL;
     }
-}
+};
 
 #endif

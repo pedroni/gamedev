@@ -1,8 +1,6 @@
-#include "SDL3/SDL_audio.h"
 #include "SDL3/SDL_keyboard.h"
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
-#include "SDL3/SDL_scancode.h"
 #include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
@@ -26,12 +24,10 @@ struct SDLState {
     int width, height, logW, logH;
 };
 
-bool initialize(SDLState &state);
-void cleanup(SDLState &state);
-
 const size_t LAYER_IDX_LEVEL = 0;
 const size_t LAYER_IDX_CHARACTERS = 1;
 const int MAX_LAYERS = 2;
+
 struct GameState {
     std::array<std::vector<GameObject>, MAX_LAYERS> layers;
 
@@ -42,6 +38,10 @@ struct GameState {
         playerIndex = 0; // will change automatically on map loading
     }
 };
+
+bool initialize(SDLState &state);
+void cleanup(SDLState &state);
+void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime);
 
 struct Resources {
     const int ANIM_PLAYER_IDLE = 0;
@@ -90,17 +90,20 @@ int main(int argc, char *argv[]) {
     // load game assets
     Resources res;
     res.load(state);
-    float spriteSize = (float)res.idleTexture->w / 7;
 
     // setup game data
     // keys is used to know which keys are being pressed in our program
-    const bool *keys = SDL_GetKeyboardState(NULL);
-    float playerX = 0;
-    bool flipHorizontal = false;
+    GameState gs;
 
-    // first usage of logH, we actually know where the floor logically is without having
-    // to care about the window size
-    const float floor = state.logH;
+    // create the player
+    GameObject player;
+    player.type = ObjectType::player;
+    player.texture = res.idleTexture;
+    player.animations = res.playerAnims;
+    player.currentAnimation = res.ANIM_PLAYER_IDLE;
+    gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
+
+    const bool *keys = SDL_GetKeyboardState(NULL);
 
     uint64_t previousTime = SDL_GetTicks();
 
@@ -137,35 +140,26 @@ int main(int argc, char *argv[]) {
         }
 
         // handle the events (update)
-        // if not pressing sets to 0
-        float playerVelocity = 0;
-        // no else if because if the two keys are pressed at once the character will stand
-        // still
-        if (keys[SDL_SCANCODE_A]) {
-            flipHorizontal = true;
-            playerVelocity += -75.0f;
+
+        // draw all objects
+        for (std::vector<GameObject> &layer : gs.layers) {
+            for (GameObject &obj : layer) {
+                if (obj.currentAnimation != -1) {
+                    obj.animations[obj.currentAnimation].step(deltaTime);
+                }
+            }
         }
-        if (keys[SDL_SCANCODE_D]) {
-            flipHorizontal = false;
-            playerVelocity += 75.0f;
-        }
-        playerX += playerVelocity * deltaTime;
 
         // perform drawing commands at last
-
         SDL_SetRenderDrawColor(state.renderer, 20, 0, 0, 255);
         SDL_RenderClear(state.renderer);
 
-        SDL_FRect srcRect = {0, 0, spriteSize, spriteSize};
-        SDL_FRect destRect = {playerX, floor - srcRect.h, spriteSize, spriteSize};
-        SDL_RenderTextureRotated(
-            state.renderer,
-            res.idleTexture,
-            &srcRect,
-            &destRect,
-            0,
-            NULL,
-            flipHorizontal ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+        // draw all objects
+        for (std::vector<GameObject> &layer : gs.layers) {
+            for (GameObject &obj : layer) {
+                drawObject(state, gs, obj, deltaTime);
+            }
+        }
 
         // swab buffers and present
         SDL_RenderPresent(state.renderer);
@@ -223,4 +217,24 @@ void cleanup(SDLState &state) {
     SDL_DestroyRenderer(state.renderer);
     SDL_DestroyWindow(state.window);
     SDL_Quit();
+}
+
+void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime) {
+
+    const float spriteSize = 128;
+    // move the sprite position
+    float srcX = obj.currentAnimation != 1
+                     ? obj.animations[obj.currentAnimation].currentFrame() * spriteSize
+                     : 0.0f;
+
+    SDL_FRect srcRect = {srcX, 0, spriteSize, spriteSize};
+    SDL_FRect destRect = {obj.position.x, obj.position.y, spriteSize, spriteSize};
+    SDL_RenderTextureRotated(
+        state.renderer,
+        obj.texture,
+        &srcRect,
+        &destRect,
+        0,
+        NULL,
+        obj.direction == 1 ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
 }
