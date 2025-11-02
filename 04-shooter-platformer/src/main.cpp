@@ -70,11 +70,8 @@ int main(int argc, char *argv[]) {
         SDL_SetRenderDrawColor(state.renderer, 20, 10, 30, 255);
         SDL_RenderClear(state.renderer);
 
-        SDL_RenderTexture(
-            state.renderer,
-            idleTexture,
-            SDL_FRect{0, 0, (float)idleTexture->w / 7, (float)idleTexture->h},
-            NULL);
+        SDL_FRect srcRect = {0, 0, (float)idleTexture->w / 7, (float)idleTexture->h};
+        SDL_RenderTexture(state.renderer, idleTexture, &srcRect, NULL);
 
         // swab buffers and present
         SDL_RenderPresent(state.renderer);

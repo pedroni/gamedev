@@ -36,8 +36,8 @@ target_link_libraries(mygame PRIVATE ${SDL3_IMAGE_LIBRARIES})
 # Include directories
 target_include_directories(mygame PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${SDL3_INCLUDE_DIRS}
     ${SDL3_IMAGE_INCLUDE_DIRS}
+    ${SDL3_INCLUDE_DIRS}
 )
 
 target_compile_options(mygame PRIVATE ${SDL3_CFLAGS_OTHER} ${SDL3_IMAGE_CFLAGS_OTHER})
