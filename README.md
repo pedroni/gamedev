@@ -4,7 +4,7 @@ Learning C++ with games.
 
 ## 02-dapper-dasher
 
-<img src="https://res.cloudinary.com/dzlxk32wz/image/upload/output_qqtolh.gif" alt="dapper dasher demo" width="100%">
+![dapper daher demo](https://res.cloudinary.com/dzlxk32wz/image/upload/output_qqtolh.gif)
 
 ## 01-axe
 
