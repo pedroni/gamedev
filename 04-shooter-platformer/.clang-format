@@ -7,7 +7,7 @@ SpaceBeforeRangeBasedForLoopColon: true
 AlwaysBreakTemplateDeclarations: true
 IndentWidth: 4
 UseTab: Never
-ColumnLimit: 100
+ColumnLimit: 90
 BinPackParameters: false
 BinPackArguments: false
 AlignAfterOpenBracket: AlwaysBreak
