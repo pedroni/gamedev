@@ -80,6 +80,18 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        // handle the events (update)
+        // if not pressing sets to 0
+        float playerVelocity = 0;
+        // no else if because if the two keys are pressed at once the character will stand still
+        if (keys[SDL_SCANCODE_A]) {
+            playerVelocity += -75.0f;
+        }
+        if (keys[SDL_SCANCODE_D]) {
+            playerVelocity += 75.0f;
+        }
+        playerX += playerVelocity;
+
         // perform drawing commands at last
 
         SDL_SetRenderDrawColor(state.renderer, 20, 10, 30, 255);
