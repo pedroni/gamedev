@@ -1,3 +1,4 @@
+#include "SDL3/SDL_audio.h"
 #include "SDL3/SDL_keyboard.h"
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
@@ -6,9 +7,11 @@
 #include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
 #include "animation.h"
+#include "gameobject.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3_image/SDL_image.h>
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <vector>
@@ -25,6 +28,20 @@ struct SDLState {
 
 bool initialize(SDLState &state);
 void cleanup(SDLState &state);
+
+const size_t LAYER_IDX_LEVEL = 0;
+const size_t LAYER_IDX_CHARACTERS = 1;
+const int MAX_LAYERS = 2;
+struct GameState {
+    std::array<std::vector<GameObject>, MAX_LAYERS> layers;
+
+    // so we know where the placer is at
+    int playerIndex;
+
+    GameState() {
+        playerIndex = 0; // will change automatically on map loading
+    }
+};
 
 struct Resources {
     const int ANIM_PLAYER_IDLE = 0;

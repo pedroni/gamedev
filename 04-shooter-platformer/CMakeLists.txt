@@ -21,6 +21,9 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL3 REQUIRED sdl3)
 pkg_check_modules(SDL3_IMAGE REQUIRED sdl3-image)
 
+# Find GLM
+find_package(glm REQUIRED)
+
 # Add source files
 set(SOURCES
     src/main.cpp
@@ -29,15 +32,16 @@ set(SOURCES
 # Create executable
 add_executable(mygame ${SOURCES})
 
-# Link SDL3
+# Link SDL3 and GLM
 target_link_directories(mygame PRIVATE ${SDL3_IMAGE_LIBRARY_DIRS})
-target_link_libraries(mygame PRIVATE ${SDL3_IMAGE_LIBRARIES})
+target_link_libraries(mygame PRIVATE ${SDL3_IMAGE_LIBRARIES} glm::glm)
 
 # Include directories
 target_include_directories(mygame PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${SDL3_IMAGE_INCLUDE_DIRS}
     ${SDL3_INCLUDE_DIRS}
+    /opt/homebrew/opt/glm/include
 )
 
 target_compile_options(mygame PRIVATE ${SDL3_CFLAGS_OTHER} ${SDL3_IMAGE_CFLAGS_OTHER})

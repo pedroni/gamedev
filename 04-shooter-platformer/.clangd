@@ -3,6 +3,7 @@ CompileFlags:
   Add:
     - -I/opt/homebrew/Cellar/sdl3/3.2.26/include
     - -I/opt/homebrew/Cellar/sdl3_image/3.2.4/include
+    - -I/opt/homebrew/opt/glm/include
 
 Diagnostics:
   UnusedIncludes: None

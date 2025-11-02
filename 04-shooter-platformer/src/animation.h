@@ -2,6 +2,7 @@
 #define animation_h
 
 #include "timer.h"
+
 class Animation {
     Timer timer;
     int frameCount;
