@@ -16,9 +16,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic -Wunused -Wunus
 # Output binary to build/mygame
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# Use pkg-config to find SDL2 from Homebrew
+# Use pkg-config to find SDL3 from Homebrew
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED sdl2)
+pkg_check_modules(SDL3 REQUIRED sdl3)
 
 # Add source files
 set(SOURCES
@@ -28,14 +28,14 @@ set(SOURCES
 # Create executable
 add_executable(mygame ${SOURCES})
 
-# Link SDL2
-target_link_directories(mygame PRIVATE ${SDL2_LIBRARY_DIRS})
-target_link_libraries(mygame PRIVATE ${SDL2_LIBRARIES})
+# Link SDL3
+target_link_directories(mygame PRIVATE ${SDL3_LIBRARY_DIRS})
+target_link_libraries(mygame PRIVATE ${SDL3_LIBRARIES})
 
 # Include directories
 target_include_directories(mygame PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${SDL2_INCLUDE_DIRS}
+    ${SDL3_INCLUDE_DIRS}
 )
 
-target_compile_options(mygame PRIVATE ${SDL2_CFLAGS_OTHER})
+target_compile_options(mygame PRIVATE ${SDL3_CFLAGS_OTHER})
