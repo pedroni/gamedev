@@ -51,11 +51,13 @@ struct Resources {
     const int ANIM_PLAYER_IDLE = 0;
     const int ANIM_PLAYER_WALK = 1;
     const int ANIM_PLAYER_RUN = 2;
+    const int ANIM_PLAYER_JUMP = 3;
+    const int ANIM_PLAYER_SLIDE = 4;
 
     std::vector<Animation> playerAnims;
     std::vector<SDL_Texture *> textures;
-    SDL_Texture *idleTexture, *runTexture, *walkTexture, *grassTexture, *groundTexture,
-        *panelTexture, *brickTexture;
+    SDL_Texture *idleTexture, *runTexture, *walkTexture, *slideTexture, *jumpTexture,
+        *grassTexture, *groundTexture, *panelTexture, *brickTexture;
 
     SDL_Texture *loadTexture(SDL_Renderer *renderer, const std::string &filePath) {
         SDL_Texture *texture = IMG_LoadTexture(renderer, filePath.c_str());
@@ -77,11 +79,15 @@ struct Resources {
         playerAnims[ANIM_PLAYER_IDLE] = Animation(7, 1);
         playerAnims[ANIM_PLAYER_WALK] = Animation(7, 0.5);
         playerAnims[ANIM_PLAYER_RUN] = Animation(8, 0.5);
+        playerAnims[ANIM_PLAYER_JUMP] = Animation(8, 2);
+        playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 0.1);
 
         // player
         idleTexture = loadTexture(state.renderer, "./assets/light/Idle.png");
         runTexture = loadTexture(state.renderer, "./assets/light/Run.png");
         walkTexture = loadTexture(state.renderer, "./assets/light/Walk.png");
+        jumpTexture = loadTexture(state.renderer, "./assets/light/Jump.png");
+        slideTexture = loadTexture(state.renderer, "./assets/light/Run.png");
 
         // map
         grassTexture = loadTexture(state.renderer, "./assets/map/grass.png");
@@ -328,10 +334,9 @@ void update(
         PlayerState &playerState = obj.data.player.state;
         switch (playerState) {
         case PlayerState::IDLE: {
+            // switch to walking state
             if (currentDirection != 0) {
                 playerState = PlayerState::WALKING;
-                obj.texture = res.walkTexture;
-                obj.currentAnimation = res.ANIM_PLAYER_WALK;
             } else {
                 // when becomes idle it should decelerate, similar to breaking in cars
                 if (obj.velocity.x) {
@@ -355,15 +360,30 @@ void update(
                     }
                 }
             }
+            obj.texture = res.idleTexture;
+            obj.currentAnimation = res.ANIM_PLAYER_IDLE;
             break;
         }
         case PlayerState::WALKING: {
+            // switch to idle state
             if (currentDirection == 0) {
                 playerState = PlayerState::IDLE;
-                obj.texture = res.idleTexture;
-                obj.currentAnimation = res.ANIM_PLAYER_IDLE;
+            }
+
+            // sliding animation, we slide when we are going left but velocity is forcing
+            // us to go right, direction defines where we going, if left -1 if right 1
+            if (obj.direction * obj.velocity.x < 0) {
+                obj.texture = res.slideTexture;
+                obj.currentAnimation = res.ANIM_PLAYER_SLIDE;
+            } else {
+                obj.texture = res.walkTexture;
+                obj.currentAnimation = res.ANIM_PLAYER_WALK;
             }
             break;
+        }
+        case PlayerState::JUMPING: {
+            obj.texture = res.jumpTexture;
+            obj.currentAnimation = res.ANIM_PLAYER_JUMP;
         }
         }
 
@@ -591,7 +611,7 @@ void handleKeyInput(
         return;
     }
 
-    const float JUMP_FORCE = -200.0f;
+    const float JUMP_FORCE = -100.0f;
 
     switch (obj.data.player.state) {
     case PlayerState::IDLE: {
