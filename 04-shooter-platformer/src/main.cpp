@@ -18,6 +18,15 @@
 #include <iostream>
 #include <vector>
 
+const char *formatText(const char *fmt, ...) {
+    static char buffer[256]; // static = persists after function returns
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    va_end(args);
+    return buffer;
+}
+
 const size_t LAYER_IDX_LEVEL = 0;
 const size_t LAYER_IDX_CHARACTERS = 1;
 const int MAX_LAYERS = 2;
@@ -32,8 +41,10 @@ struct GameState {
     int playerIndex;
 
     GameState() {
-        playerIndex = 0; // will change automatically on map loading
+        playerIndex = -1; // will change automatically on map loading
     }
+
+    GameObject &player() { return layers[LAYER_IDX_CHARACTERS][playerIndex]; };
 };
 
 struct Resources {
@@ -103,6 +114,12 @@ void checkCollision(
     GameObject &objA,
     GameObject &objB,
     float deltaTime);
+void handleKeyInput(
+    const SDLState &state,
+    GameState &gs,
+    GameObject &obj,
+    SDL_Scancode key,
+    bool keyDown);
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -144,15 +161,20 @@ int main(int argc, char *argv[]) {
                 running = false;
                 break;
             }
+            case SDL_EVENT_WINDOW_RESIZED: {
+                state.width = event.window.data1;
+                state.height = event.window.data2;
+                break;
+            }
             case SDL_EVENT_KEY_DOWN: {
                 if (event.key.key == SDLK_ESCAPE) {
                     running = false;
                 }
+                handleKeyInput(state, gs, gs.player(), event.key.scancode, true);
                 break;
             }
-            case SDL_EVENT_WINDOW_RESIZED: {
-                state.width = event.window.data1;
-                state.height = event.window.data2;
+            case SDL_EVENT_KEY_UP: {
+                handleKeyInput(state, gs, gs.player(), event.key.scancode, false);
                 break;
             }
             }
@@ -180,6 +202,14 @@ int main(int argc, char *argv[]) {
                 drawObject(state, gs, obj, deltaTime);
             }
         }
+
+        // display some debug info
+        SDL_SetRenderDrawColor(state.renderer, 255, 255, 255, 255);
+        SDL_RenderDebugText(
+            state.renderer,
+            8,
+            8,
+            formatText("State: %d", gs.player().data.player.state));
 
         // swab buffers and present
         SDL_RenderPresent(state.renderer);
@@ -335,16 +365,6 @@ void update(
             }
             break;
         }
-        case PlayerState::RUNNING: {
-            std::cout << "RUNNING" << std::endl;
-
-            break;
-        }
-        case PlayerState::JUMPING: {
-            std::cout << "JUMPING" << std::endl;
-
-            break;
-        }
         }
 
         // accelerates the character by pressing keys
@@ -362,13 +382,39 @@ void update(
     // ⚠️ THIS IS BAD OPTMIZED THERE'S A BETTER WAY TO DO IT
     // the current "obj" in the update game loop is our objA, whereas the objects in the
     // layers are our objB
+    bool foundGround = false;
     for (std::vector<GameObject> &layer : gs.layers) {
         for (GameObject &objB : layer) {
             // make sure they're different by checking their memory address
             // we don't want to check if it's colliding against itself
             if (&obj != &objB) {
                 checkCollision(state, gs, res, obj, objB, deltaTime);
+
+                // grounded sensor, this creates a pixel line that is at the bottom of the
+                // current object collider
+                SDL_FRect sensor = {
+                    obj.position.x + obj.collider.x,
+                    obj.position.y + obj.collider.y + obj.collider.h,
+                    obj.collider.w,
+                    1};
+
+                SDL_FRect rectB = {
+                    objB.position.x + objB.collider.x,
+                    objB.position.y + objB.collider.y,
+                    objB.collider.w,
+                    objB.collider.h};
+
+                if (SDL_HasRectIntersectionFloat(&sensor, &rectB)) {
+                    foundGround = true;
+                }
             }
+        }
+    }
+    // if they're different it means that we're changing state
+    if (obj.grounded != foundGround) {
+        obj.grounded = foundGround;
+        if (foundGround && obj.type == ObjectType::PLAYER) {
+            obj.data.player.state = PlayerState::WALKING;
         }
     }
 }
@@ -520,12 +566,47 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
                 // ⚠️ should i call "hasGravity"
                 player.dynamic = true;
                 // ⚠️ not the perfect hit box our sprite character is bigger
+
                 player.collider = {10, 10, 12, 26};
 
                 gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
+                gs.playerIndex = gs.layers[LAYER_IDX_CHARACTERS].size() - 1;
                 break;
             }
             }
         }
+        // we always need to set the player in order for the game to run
+        assert(gs.playerIndex != -1);
+    }
+}
+
+void handleKeyInput(
+    const SDLState &state,
+    GameState &gs,
+    GameObject &obj,
+    SDL_Scancode key,
+    bool keyDown) {
+
+    if (obj.type != ObjectType::PLAYER) {
+        return;
+    }
+
+    const float JUMP_FORCE = -200.0f;
+
+    switch (obj.data.player.state) {
+    case PlayerState::IDLE: {
+        if (key == SDL_SCANCODE_SPACE && keyDown) {
+            obj.data.player.state = PlayerState::JUMPING;
+            obj.velocity.y += JUMP_FORCE;
+        }
+        break;
+    }
+    case PlayerState::WALKING: {
+        if (key == SDL_SCANCODE_SPACE && keyDown) {
+            obj.data.player.state = PlayerState::JUMPING;
+            obj.velocity.y += JUMP_FORCE;
+        }
+        break;
+    }
     }
 }

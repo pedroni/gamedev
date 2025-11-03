@@ -51,6 +51,8 @@ struct GameObject {
     // custom hitbox for our game object
     SDL_FRect collider;
 
+    bool grounded;
+
     GameObject() {
         data = ObjectData();
         type = ObjectType::LEVEL;
@@ -69,6 +71,8 @@ struct GameObject {
 
         // by default objects aren't "collideable"
         collider = {0, 0, 0, 0};
+
+        grounded = false;
 
         texture = NULL;
     }
