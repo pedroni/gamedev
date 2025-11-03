@@ -42,6 +42,11 @@ struct GameObject {
 
     SDL_Texture *texture;
 
+    /**
+     * controls whether its affected by gravity or not
+     */
+    bool dynamic;
+
     GameObject() {
         data = ObjectData();
         type = ObjectType::LEVEL;
@@ -54,6 +59,8 @@ struct GameObject {
 
         // when -1 it's unset
         currentAnimation = -1;
+
+        dynamic = false;
 
         texture = NULL;
     }

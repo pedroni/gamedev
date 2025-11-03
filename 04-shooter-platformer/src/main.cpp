@@ -261,6 +261,12 @@ void update(
     GameObject &obj,
     float deltaTime) {
 
+    // apply gravity to dynamic objects
+    if (obj.dynamic) {
+        obj.velocity +=
+            glm::vec2(0, 200.0f) * deltaTime; // apply downward force to objects
+    }
+
     if (obj.type == ObjectType::PLAYER) {
         // input handling for the player
         // 0 means pressing neither A or D or BOTH
@@ -334,16 +340,16 @@ void update(
         }
         }
 
-        // accelerates the character
+        // accelerates the character by pressing keys
         obj.velocity += currentDirection * (obj.acceleration * deltaTime);
 
         if (std::abs(obj.velocity.x) > obj.maxSpeedX) {
             obj.velocity.x = currentDirection * obj.maxSpeedX;
         }
-
-        // moves the character by velocity
-        obj.position += obj.velocity * deltaTime;
     }
+
+    // moves the object by velocity overtime
+    obj.position += obj.velocity * deltaTime;
 }
 
 GameObject createObject(
@@ -394,6 +400,7 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
             {
                 GameObject obj =
                     createObject(state, row, col, ObjectType::LEVEL, res.panelTexture);
+
                 gs.layers[LAYER_IDX_LEVEL].push_back(obj);
                 break;
             }
@@ -408,6 +415,8 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
                 // when pressing the "acelerador" do carro ele acelera 300
                 player.acceleration = glm::vec2(300, 0);
                 player.maxSpeedX = 100;
+                player.dynamic = true;
+
                 gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
                 break;
             }
