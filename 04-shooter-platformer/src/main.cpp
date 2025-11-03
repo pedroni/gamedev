@@ -7,6 +7,7 @@
 #include "SDL3/SDL_video.h"
 #include "animation.h"
 #include "gameobject.h"
+#include "state.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3_image/SDL_image.h>
@@ -17,22 +18,12 @@
 #include <iostream>
 #include <vector>
 
-struct SDLState {
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    // logW and logH means logical width/height it's used by
-    // SDL_SetRenderLogicalPresentation to make a logical width of our game without us
-    // having to worry about window resize and screen resolution, width and height here
-    // are the actual widnow size on the client
-    int width, height, logW, logH;
-
-    const bool *keys;
-    SDLState() { keys = SDL_GetKeyboardState(NULL); }
-};
-
 const size_t LAYER_IDX_LEVEL = 0;
 const size_t LAYER_IDX_CHARACTERS = 1;
 const int MAX_LAYERS = 2;
+const int MAP_ROWS = 5;
+const int MAP_COLS = 50;
+const int TILE_SIZE = 32;
 
 struct GameState {
     std::array<std::vector<GameObject>, MAX_LAYERS> layers;
@@ -52,7 +43,8 @@ struct Resources {
 
     std::vector<Animation> playerAnims;
     std::vector<SDL_Texture *> textures;
-    SDL_Texture *idleTexture, *runTexture, *walkTexture;
+    SDL_Texture *idleTexture, *runTexture, *walkTexture, *grassTexture, *groundTexture,
+        *panelTexture, *brickTexture;
 
     SDL_Texture *loadTexture(SDL_Renderer *renderer, const std::string &filePath) {
         SDL_Texture *texture = IMG_LoadTexture(renderer, filePath.c_str());
@@ -75,9 +67,16 @@ struct Resources {
         playerAnims[ANIM_PLAYER_WALK] = Animation(7, 0.5);
         playerAnims[ANIM_PLAYER_RUN] = Animation(8, 0.5);
 
+        // player
         idleTexture = loadTexture(state.renderer, "./assets/light/Idle.png");
         runTexture = loadTexture(state.renderer, "./assets/light/Run.png");
         walkTexture = loadTexture(state.renderer, "./assets/light/Walk.png");
+
+        // map
+        grassTexture = loadTexture(state.renderer, "./assets/map/grass.png");
+        groundTexture = loadTexture(state.renderer, "./assets/map/ground.png");
+        panelTexture = loadTexture(state.renderer, "./assets/map/panel.png");
+        brickTexture = loadTexture(state.renderer, "./assets/map/brick.png");
     }
     void unload() {
         for (auto *texture : textures) {
@@ -95,6 +94,8 @@ void update(
     GameObject &obj,
     float deltaTime);
 void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime);
+GameObject createObject(const SDLState &state, int r, int c, ObjectType type);
+void createTiles(const SDLState &state, GameState &gs, Resources &res);
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -114,18 +115,7 @@ int main(int argc, char *argv[]) {
     // setup game data
     // keys is used to know which keys are being pressed in our program
     GameState gs;
-
-    // create the player
-    GameObject player;
-    player.type = ObjectType::PLAYER;
-    player.data.player = PlayerData();
-    player.texture = res.idleTexture;
-    player.animations = res.playerAnims;
-    player.currentAnimation = res.ANIM_PLAYER_IDLE;
-    // when pressing the "acelerador" do carro ele acelera 300
-    player.acceleration = glm::vec2(300, 0);
-    player.maxSpeedX = 100;
-    gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
+    createTiles(state, gs, res);
 
     uint64_t previousTime = SDL_GetTicks();
 
@@ -200,8 +190,8 @@ bool initialize(SDLState &state) {
         return false;
     }
 
-    state.width = 800;
-    state.height = 640;
+    state.width = 640 * 2;
+    state.height = 320 * 2;
     state.window =
         SDL_CreateWindow("My Game", state.width, state.height, SDL_WINDOW_RESIZABLE);
 
@@ -244,14 +234,15 @@ void cleanup(SDLState &state) {
 
 void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime) {
 
-    const float spriteSize = 128;
+    const float spriteSize = obj.type == ObjectType::PLAYER ? 128 : TILE_SIZE;
+
     // move the sprite position
     float srcX = obj.currentAnimation != -1
                      ? obj.animations[obj.currentAnimation].currentFrame() * spriteSize
                      : 0.0f;
 
     SDL_FRect srcRect = {srcX, 0, spriteSize, spriteSize};
-    SDL_FRect destRect = {obj.position.x, obj.position.y, spriteSize, spriteSize};
+    SDL_FRect destRect = {obj.position.x, obj.position.y, TILE_SIZE, TILE_SIZE};
 
     SDL_RenderTextureRotated(
         state.renderer,
@@ -352,5 +343,75 @@ void update(
 
         // moves the character by velocity
         obj.position += obj.velocity * deltaTime;
+    }
+}
+
+GameObject createObject(
+    const SDLState &state,
+    int row,
+    int col,
+    ObjectType type,
+    SDL_Texture *texture) {
+    GameObject obj;
+    obj.type = type;
+    obj.texture = texture;
+    obj.position = glm::vec2(col * TILE_SIZE, state.logH - (MAP_ROWS - row) * TILE_SIZE);
+
+    return obj;
+};
+
+void createTiles(const SDLState &state, GameState &gs, Resources &res) {
+    /**
+     * 0 - Empty tiles
+     * 1 - Ground
+     * 2 - Panel
+     * 3 - Enemy
+     * 4 - Player
+     * 5 - Grass
+     * 6 - Brick
+     */
+    short map[MAP_ROWS][MAP_COLS] = {
+        // clang-format off
+        {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {1,1,1,1,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        // clang-format on
+    };
+
+    for (int row = 0; row < MAP_ROWS; row++) {
+        for (int col = 0; col < MAP_COLS; col++) {
+            switch (map[row][col]) {
+            case 1: // ground
+            {
+                GameObject obj =
+                    createObject(state, row, col, ObjectType::LEVEL, res.groundTexture);
+                gs.layers[LAYER_IDX_LEVEL].push_back(obj);
+                break;
+            }
+            case 2: // ground
+            {
+                GameObject obj =
+                    createObject(state, row, col, ObjectType::LEVEL, res.panelTexture);
+                gs.layers[LAYER_IDX_LEVEL].push_back(obj);
+                break;
+            }
+            case 4: // player
+            {
+                // create the player
+                GameObject player =
+                    createObject(state, row, col, ObjectType::PLAYER, res.idleTexture);
+                player.data.player = PlayerData();
+                player.animations = res.playerAnims;
+                player.currentAnimation = res.ANIM_PLAYER_IDLE;
+                // when pressing the "acelerador" do carro ele acelera 300
+                player.acceleration = glm::vec2(300, 0);
+                player.maxSpeedX = 100;
+                gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
+                break;
+            }
+            }
+        }
     }
 }
