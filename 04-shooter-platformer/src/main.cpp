@@ -40,8 +40,14 @@ struct GameState {
     // so we know where the placer is at
     int playerIndex;
 
-    GameState() {
+    // this is what moves the game and make the player stays in the middle of our world
+    // works as the camera
+    SDL_FRect mapViewport;
+
+    GameState(const SDLState &state) {
         playerIndex = -1; // will change automatically on map loading
+        mapViewport =
+            {0, 0, static_cast<float>(state.logW), static_cast<float>(state.logH)};
     }
 
     GameObject &player() { return layers[LAYER_IDX_CHARACTERS][playerIndex]; };
@@ -144,7 +150,7 @@ int main(int argc, char *argv[]) {
 
     // setup game data
     // keys is used to know which keys are being pressed in our program
-    GameState gs;
+    GameState gs = GameState(state);
     createTiles(state, gs, res);
 
     uint64_t previousTime = SDL_GetTicks();
@@ -197,6 +203,10 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
+
+        // calculate viewport / camera position
+        gs.mapViewport.x = (gs.player().position.x + static_cast<float>(TILE_SIZE) / 2) -
+                           gs.mapViewport.w / 2;
 
         // perform drawing commands at last
         SDL_SetRenderDrawColor(state.renderer, 20, 0, 0, 255);
@@ -285,7 +295,8 @@ void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float del
                      : 0.0f;
 
     SDL_FRect srcRect = {srcX, 0, spriteSize, spriteSize};
-    SDL_FRect destRect = {obj.position.x, obj.position.y, TILE_SIZE, TILE_SIZE};
+    SDL_FRect destRect =
+        {obj.position.x - gs.mapViewport.x, obj.position.y, TILE_SIZE, TILE_SIZE};
 
     SDL_RenderTextureRotated(
         state.renderer,
@@ -544,11 +555,11 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
      */
     short map[MAP_ROWS][MAP_COLS] = {
         // clang-format off
-        {0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {1,1,1,1,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,2,2,0,0,0,0,0,2,0,2,2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         // clang-format on
     };
 
