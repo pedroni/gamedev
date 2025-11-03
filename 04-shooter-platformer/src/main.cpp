@@ -39,9 +39,9 @@ const int TILE_SIZE = 32;
 struct GameState {
     std::array<std::vector<GameObject>, MAX_LAYERS> layers;
 
-    // these are for aesthetics
+    // here for aesthetics reasons, don't collide with the player
     std::vector<GameObject> backgroundTiles;
-    std::vector<GameObject> foreGroundTiles;
+    std::vector<GameObject> foregroundTiles;
 
     // so we know where the placer is at
     int playerIndex;
@@ -158,6 +158,11 @@ void drawParallaxBackground(
     float scrollFactor,
     float deltaTime);
 
+void loadMap(
+    const SDLState &state,
+    GameState &gs,
+    Resources &res,
+    short layer[MAP_ROWS][MAP_COLS]);
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -270,11 +275,32 @@ int main(int argc, char *argv[]) {
             gs.bg2Scroll,
             0.3f,
             deltaTime);
+
+        // draw background tiles before regular objects
+        for (GameObject &obj : gs.backgroundTiles) {
+            SDL_FRect dest{
+                obj.position.x - gs.mapViewport.x,
+                obj.position.y,
+                static_cast<float>(obj.texture->w),
+                static_cast<float>(obj.texture->h)};
+            SDL_RenderTexture(state.renderer, obj.texture, NULL, &dest);
+        }
+
         // draw all objects
         for (std::vector<GameObject> &layer : gs.layers) {
             for (GameObject &obj : layer) {
                 drawObject(state, gs, obj, deltaTime);
             }
+        }
+
+        // draw foreground objects
+        for (GameObject &obj : gs.foregroundTiles) {
+            SDL_FRect dest{
+                obj.position.x - gs.mapViewport.x,
+                obj.position.y,
+                static_cast<float>(obj.texture->w),
+                static_cast<float>(obj.texture->h)};
+            SDL_RenderTexture(state.renderer, obj.texture, NULL, &dest);
         }
 
         // display some debug info
@@ -605,29 +631,14 @@ void checkCollision(
     }
 };
 
-void createTiles(const SDLState &state, GameState &gs, Resources &res) {
-    /**
-     * 0 - Empty tiles
-     * 1 - Ground
-     * 2 - Panel
-     * 3 - Enemy
-     * 4 - Player
-     * 5 - Grass
-     * 6 - Brick
-     */
-    short map[MAP_ROWS][MAP_COLS] = {
-        // clang-format off
-        {0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,2,2,0,0,0,0,0,2,0,2,2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        // clang-format on
-    };
-
+void loadMap(
+    const SDLState &state,
+    GameState &gs,
+    Resources &res,
+    short layer[MAP_ROWS][MAP_COLS]) {
     for (int row = 0; row < MAP_ROWS; row++) {
         for (int col = 0; col < MAP_COLS; col++) {
-            switch (map[row][col]) {
+            switch (layer[row][col]) {
             case 1: // ground
             {
                 GameObject obj =
@@ -666,11 +677,72 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
                 gs.playerIndex = gs.layers[LAYER_IDX_CHARACTERS].size() - 1;
                 break;
             }
+            case 5: // grass
+            {
+
+                GameObject obj =
+                    createObject(state, row, col, ObjectType::LEVEL, res.grassTexture);
+                gs.foregroundTiles.push_back(obj);
+                break;
+            }
+            case 6: // brick
+            {
+                GameObject obj =
+                    createObject(state, row, col, ObjectType::LEVEL, res.brickTexture);
+                gs.backgroundTiles.push_back(obj);
+                break;
+            }
             }
         }
-        // we always need to set the player in order for the game to run
-        assert(gs.playerIndex != -1);
     }
+}
+
+void createTiles(const SDLState &state, GameState &gs, Resources &res) {
+    /**
+     * 0 - Empty tiles
+     * 1 - Ground
+     * 2 - Panel
+     * 3 - Enemy
+     * 4 - Player
+     * 5 - Grass
+     * 6 - Brick
+     */
+    short map[MAP_ROWS][MAP_COLS] = {
+        // clang-format off
+        {0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,2,2,0,0,0,0,0,2,0,2,2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
+        // clang-format on
+    };
+
+    short background[MAP_ROWS][MAP_COLS] = {
+        // clang-format off
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        // clang-format on
+    };
+
+    short foreground[MAP_ROWS][MAP_COLS] = {
+        // clang-format off
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {5,5,5,5,5,5,5,5,5,5,0,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,0,5,5,5,5,5,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        // clang-format on
+    };
+
+    loadMap(state, gs, res, map);
+    loadMap(state, gs, res, background);
+    loadMap(state, gs, res, foreground);
+
+    // after loading the map we always need to set the player in order for the game to run
+    assert(gs.playerIndex != -1);
 }
 
 void handleKeyInput(
