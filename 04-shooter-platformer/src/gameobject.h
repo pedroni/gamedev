@@ -1,6 +1,7 @@
 #ifndef gameobject_h
 #define gameobject_h
 
+#include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
 #include "animation.h"
 #include <glm/glm.hpp>
@@ -47,6 +48,9 @@ struct GameObject {
      */
     bool dynamic;
 
+    // custom hitbox for our game object
+    SDL_FRect collider;
+
     GameObject() {
         data = ObjectData();
         type = ObjectType::LEVEL;
@@ -60,7 +64,11 @@ struct GameObject {
         // when -1 it's unset
         currentAnimation = -1;
 
+        // by default objects don't have gravity
         dynamic = false;
+
+        // by default objects aren't "collideable"
+        collider = {0, 0, 0, 0};
 
         texture = NULL;
     }

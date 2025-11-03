@@ -96,6 +96,13 @@ void update(
 void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime);
 GameObject createObject(const SDLState &state, int r, int c, ObjectType type);
 void createTiles(const SDLState &state, GameState &gs, Resources &res);
+void checkCollision(
+    const SDLState &state,
+    GameState &gs,
+    Resources &res,
+    GameObject &objA,
+    GameObject &objB,
+    float deltaTime);
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -350,6 +357,20 @@ void update(
 
     // moves the object by velocity overtime
     obj.position += obj.velocity * deltaTime;
+
+    // handle collision detection
+    // ⚠️ THIS IS BAD OPTMIZED THERE'S A BETTER WAY TO DO IT
+    // the current "obj" in the update game loop is our objA, whereas the objects in the
+    // layers are our objB
+    for (std::vector<GameObject> &layer : gs.layers) {
+        for (GameObject &objB : layer) {
+            // make sure they're different by checking their memory address
+            // we don't want to check if it's colliding against itself
+            if (&obj != &objB) {
+                checkCollision(state, gs, res, obj, objB, deltaTime);
+            }
+        }
+    }
 }
 
 GameObject createObject(
@@ -362,8 +383,87 @@ GameObject createObject(
     obj.type = type;
     obj.texture = texture;
     obj.position = glm::vec2(col * TILE_SIZE, state.logH - (MAP_ROWS - row) * TILE_SIZE);
+    obj.collider = {0, 0, TILE_SIZE, TILE_SIZE};
 
     return obj;
+};
+
+void collisionResponse(
+    const SDLState &state,
+    GameState &gs,
+    Resources &res,
+    GameObject &objA,
+    GameObject &objB,
+    SDL_FRect &rectA,
+    SDL_FRect &rectB,
+    SDL_FRect &rectC,
+    float deltaTime) {
+    // object we're checking
+    if (objA.type == ObjectType::PLAYER) {
+
+        // object it is colliding with
+        switch (objB.type) {
+        case ObjectType::LEVEL: {
+            if (rectC.w < rectC.h) {
+                // if height is bigger than width
+                // horizontal collision, when walking X
+
+                if (objA.velocity.x > 0) { // going right, positive velocity
+                    // "teleport" the character back the size of collision
+                    objA.position.x -= rectC.w;
+
+                } else if (objA.velocity.x < 0) { // negative velocity x, means going left
+                    // should be less than 0, because we don't want to do anything if its
+                    // 0 "teleport" the character back the size of collision
+                    objA.position.x += rectC.w;
+                }
+
+                objA.velocity.x = 0; // prevent the player from moving
+            } else {
+                // vertical collision, when falling/jumping Y
+                if (objA.velocity.y > 0) { // going up, positive velocity
+                    // "teleport" the character back the size of collision
+                    objA.position.y -= rectC.h;
+                } else if (objA.velocity.y < 0) { // negative velocity y, means going
+                                                  // down/falling gravity
+                    // "teleport" the character back the size of collision
+                    objA.position.y += rectC.h;
+                }
+                objA.velocity.y = 0; // prevent the player from moving
+            }
+        }
+        }
+    }
+}
+
+void checkCollision(
+    const SDLState &state,
+    GameState &gs,
+    Resources &res,
+    GameObject &objA,
+    GameObject &objB,
+    float deltaTime) {
+    // rects here are the hitbox
+
+    SDL_FRect rectA = {
+        objA.position.x + objA.collider.x,
+        objA.position.y + objA.collider.y,
+        objA.collider.w,
+        objA.collider.h};
+
+    SDL_FRect rectB = {
+        objB.position.x + objB.collider.x,
+        objB.position.y + objB.collider.y,
+        objB.collider.w,
+        objB.collider.h};
+
+    // the intersection object generated when A and B are intersecting
+    SDL_FRect rectC = {0, 0, 0, 0};
+
+    if (SDL_GetRectIntersectionFloat(&rectA, &rectB, &rectC)) {
+        // found intersection, it means that they're colliding
+        collisionResponse(state, gs, res, objA, objB, rectA, rectB, rectC, deltaTime);
+    }
 };
 
 void createTiles(const SDLState &state, GameState &gs, Resources &res) {
@@ -378,7 +478,7 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
      */
     short map[MAP_ROWS][MAP_COLS] = {
         // clang-format off
-        {4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -415,7 +515,12 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
                 // when pressing the "acelerador" do carro ele acelera 300
                 player.acceleration = glm::vec2(300, 0);
                 player.maxSpeedX = 100;
+
+                // define gravity
+                // ⚠️ should i call "hasGravity"
                 player.dynamic = true;
+                // ⚠️ not the perfect hit box our sprite character is bigger
+                player.collider = {10, 10, 12, 26};
 
                 gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
                 break;
