@@ -1,4 +1,5 @@
 #include "SDL3/SDL_keyboard.h"
+#include "SDL3/SDL_oldnames.h"
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
 #include "SDL3/SDL_scancode.h"
@@ -12,6 +13,7 @@
 #include <SDL3/SDL_events.h>
 #include <SDL3_image/SDL_image.h>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <ios>
@@ -37,6 +39,10 @@ const int TILE_SIZE = 32;
 struct GameState {
     std::array<std::vector<GameObject>, MAX_LAYERS> layers;
 
+    // these are for aesthetics
+    std::vector<GameObject> backgroundTiles;
+    std::vector<GameObject> foreGroundTiles;
+
     // so we know where the placer is at
     int playerIndex;
 
@@ -44,10 +50,14 @@ struct GameState {
     // works as the camera
     SDL_FRect mapViewport;
 
+    float bg2Scroll, bg3Scroll, bg4Scroll, bg5Scroll;
+
     GameState(const SDLState &state) {
         playerIndex = -1; // will change automatically on map loading
         mapViewport =
             {0, 0, static_cast<float>(state.logW), static_cast<float>(state.logH)};
+
+        bg2Scroll = bg3Scroll = bg4Scroll = bg5Scroll = 0;
     }
 
     GameObject &player() { return layers[LAYER_IDX_CHARACTERS][playerIndex]; };
@@ -63,7 +73,8 @@ struct Resources {
     std::vector<Animation> playerAnims;
     std::vector<SDL_Texture *> textures;
     SDL_Texture *idleTexture, *runTexture, *walkTexture, *slideTexture, *jumpTexture,
-        *grassTexture, *groundTexture, *panelTexture, *brickTexture;
+        *grassTexture, *groundTexture, *panelTexture, *brickTexture, *bg1Texture,
+        *bg2Texture, *bg3Texture, *bg4Texture, *bg5Texture;
 
     SDL_Texture *loadTexture(SDL_Renderer *renderer, const std::string &filePath) {
         SDL_Texture *texture = IMG_LoadTexture(renderer, filePath.c_str());
@@ -100,6 +111,13 @@ struct Resources {
         groundTexture = loadTexture(state.renderer, "./assets/map/ground.png");
         panelTexture = loadTexture(state.renderer, "./assets/map/panel.png");
         brickTexture = loadTexture(state.renderer, "./assets/map/brick.png");
+
+        // background
+        bg1Texture = loadTexture(state.renderer, "./assets/map/bg/sky.png");
+        bg2Texture = loadTexture(state.renderer, "./assets/map/bg/foreground_trees.png");
+        bg3Texture = loadTexture(state.renderer, "./assets/map/bg/back_trees.png");
+        bg4Texture = loadTexture(state.renderer, "./assets/map/bg/hills.png");
+        bg5Texture = loadTexture(state.renderer, "./assets/map/bg/clouds.png");
     }
     void unload() {
         for (auto *texture : textures) {
@@ -132,6 +150,13 @@ void handleKeyInput(
     GameObject &obj,
     SDL_Scancode key,
     bool keyDown);
+void drawParallaxBackground(
+    SDLState &state,
+    SDL_Texture *texture,
+    float xVelocity,
+    float &scrollPos,
+    float scrollFactor,
+    float deltaTime);
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -212,6 +237,39 @@ int main(int argc, char *argv[]) {
         SDL_SetRenderDrawColor(state.renderer, 20, 0, 0, 255);
         SDL_RenderClear(state.renderer);
 
+        // draw background images
+        SDL_RenderTexture(state.renderer, res.bg1Texture, NULL, NULL);
+        drawParallaxBackground(
+            state,
+            res.bg5Texture,
+            gs.player().velocity.x,
+            gs.bg5Scroll,
+            0.0375f,
+            deltaTime);
+
+        drawParallaxBackground(
+            state,
+            res.bg4Texture,
+            gs.player().velocity.x,
+            gs.bg4Scroll,
+            0.075f,
+            deltaTime);
+
+        drawParallaxBackground(
+            state,
+            res.bg3Texture,
+            gs.player().velocity.x,
+            gs.bg3Scroll,
+            0.150f,
+            deltaTime);
+
+        drawParallaxBackground(
+            state,
+            res.bg2Texture,
+            gs.player().velocity.x,
+            gs.bg2Scroll,
+            0.3f,
+            deltaTime);
         // draw all objects
         for (std::vector<GameObject> &layer : gs.layers) {
             for (GameObject &obj : layer) {
@@ -220,12 +278,12 @@ int main(int argc, char *argv[]) {
         }
 
         // display some debug info
-        SDL_SetRenderDrawColor(state.renderer, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(state.renderer, 10, 0, 0, 255);
         SDL_RenderDebugText(
             state.renderer,
             8,
             8,
-            formatText("State: %d", gs.player().data.player.state));
+            formatText("State: %d, yPos: %d", gs.player().data.player.state, 0));
 
         // swab buffers and present
         SDL_RenderPresent(state.renderer);
@@ -295,6 +353,10 @@ void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float del
                      : 0.0f;
 
     SDL_FRect srcRect = {srcX, 0, spriteSize, spriteSize};
+
+    // the viewport applied here shifts the position of where things are drawn on the
+    // screen. note that we don't mess with the obj actual position in the world, but with
+    // the destination rect. the destRect means where it will be drawn onto the screen
     SDL_FRect destRect =
         {obj.position.x - gs.mapViewport.x, obj.position.y, TILE_SIZE, TILE_SIZE};
 
@@ -640,4 +702,27 @@ void handleKeyInput(
         break;
     }
     }
+}
+
+void drawParallaxBackground(
+    SDLState &state,
+    SDL_Texture *texture,
+    float xVelocity,
+    float &scrollPos,
+    float scrollFactor,
+    float deltaTime) {
+
+    scrollPos -= xVelocity * scrollFactor * deltaTime;
+
+    if (scrollPos <= -texture->w) {
+        scrollPos = 0;
+    }
+
+    SDL_FRect dest = {scrollPos, 10, (float)state.logW, (float)state.logH};
+
+    // The pixels in srcrect will be repeated as many times as needed to completely fill
+    // dstrect.
+    SDL_RenderTexture(state.renderer, texture, NULL, &dest);
+    dest.x += state.logW;
+    SDL_RenderTexture(state.renderer, texture, NULL, &dest);
 }
