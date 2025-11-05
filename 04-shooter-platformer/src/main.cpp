@@ -93,18 +93,24 @@ struct Resources {
 
     void load(SDLState &state) {
         playerAnims.resize(5);
-        playerAnims[ANIM_PLAYER_IDLE] = Animation(7, 1);
-        playerAnims[ANIM_PLAYER_WALK] = Animation(7, 0.5);
+        playerAnims[ANIM_PLAYER_IDLE] = Animation(2, 1);
+        playerAnims[ANIM_PLAYER_WALK] = Animation(7, 0.8);
         playerAnims[ANIM_PLAYER_RUN] = Animation(8, 0.5);
         playerAnims[ANIM_PLAYER_JUMP] = Animation(8, 2);
         playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 0.1);
 
         // player
-        idleTexture = loadTexture(state.renderer, "./assets/light/Idle.png");
-        runTexture = loadTexture(state.renderer, "./assets/light/Run.png");
-        walkTexture = loadTexture(state.renderer, "./assets/light/Walk.png");
-        jumpTexture = loadTexture(state.renderer, "./assets/light/Jump.png");
-        slideTexture = loadTexture(state.renderer, "./assets/light/Run.png");
+        idleTexture = loadTexture(state.renderer, "./assets/prototype/HMMIdleStaff.png");
+        runTexture = loadTexture(state.renderer, "./assets/prototype/HMMRunStaff.png");
+        walkTexture = loadTexture(state.renderer, "./assets/prototype/HMMWalkStaff.png");
+        jumpTexture = loadTexture(state.renderer, "./assets/prototype/HMMJumpStaff.png");
+        slideTexture = loadTexture(state.renderer, "./assets/prototype/HMMRunStaff.png");
+        //
+        // idleTexture = loadTexture(state.renderer, "./assets/light/Idle.png");
+        // runTexture = loadTexture(state.renderer, "./assets/light/Run.png");
+        // walkTexture = loadTexture(state.renderer, "./assets/light/Walk.png");
+        // jumpTexture = loadTexture(state.renderer, "./assets/light/Jump.png");
+        // slideTexture = loadTexture(state.renderer, "./assets/light/Run.png");
 
         // map
         grassTexture = loadTexture(state.renderer, "./assets/map/grass.png");
@@ -345,6 +351,10 @@ bool initialize(SDLState &state) {
         return false;
     }
 
+    // enable vsync (this could be a setting in the menu?)
+    // avoids having the game running freely with unlimited fps
+    SDL_SetRenderVSync(state.renderer, 1);
+
     // configure presentation, this makes the game be rendered at a logical size that we
     // define, so that the game is scaled accordingly without us having to worry about
     // scaling objects, it also makes the size be respected without caring about the real
@@ -371,7 +381,8 @@ void cleanup(SDLState &state) {
 
 void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime) {
 
-    const float spriteSize = obj.type == ObjectType::PLAYER ? 128 : TILE_SIZE;
+    const float spriteSize = obj.type == ObjectType::PLAYER ? 256 : TILE_SIZE;
+    const float destSize = obj.type == ObjectType::PLAYER ? 64 : TILE_SIZE;
 
     // move the sprite position
     float srcX = obj.currentAnimation != -1
@@ -383,8 +394,15 @@ void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float del
     // the viewport applied here shifts the position of where things are drawn on the
     // screen. note that we don't mess with the obj actual position in the world, but with
     // the destination rect. the destRect means where it will be drawn onto the screen
-    SDL_FRect destRect =
-        {obj.position.x - gs.mapViewport.x, obj.position.y, TILE_SIZE, TILE_SIZE};
+
+    // necessary because our character spritesheet has bigger opacity on the right side
+    float xFipOffset = obj.type == ObjectType::PLAYER && obj.direction != 1 ? 4 : 0;
+
+    SDL_FRect destRect = {
+        obj.position.x - gs.mapViewport.x - (xFipOffset),
+        obj.position.y,
+        destSize,
+        destSize};
 
     SDL_RenderTextureRotated(
         state.renderer,
@@ -394,6 +412,14 @@ void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float del
         0,
         NULL,
         obj.direction == 1 ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
+
+    SDL_FRect colliderDebugRect{
+        obj.collider.x + obj.position.x - gs.mapViewport.x,
+        obj.collider.y + obj.position.y,
+        obj.collider.w,
+        obj.collider.h,
+    };
+    SDL_RenderRect(state.renderer, &colliderDebugRect);
 }
 
 void update(
@@ -406,7 +432,7 @@ void update(
     // apply gravity to dynamic objects
     if (obj.dynamic) {
         obj.velocity +=
-            glm::vec2(0, 200.0f) * deltaTime; // apply downward force to objects
+            glm::vec2(0, 2000.0f) * deltaTime; // apply downward force to objects
     }
 
     if (obj.type == ObjectType::PLAYER) {
@@ -664,14 +690,14 @@ void loadMap(
                 player.currentAnimation = res.ANIM_PLAYER_IDLE;
                 // when pressing the "acelerador" do carro ele acelera 300
                 player.acceleration = glm::vec2(300, 0);
-                player.maxSpeedX = 100;
+                player.maxSpeedX = 150;
 
                 // define gravity
                 // ⚠️ should i call "hasGravity"
                 player.dynamic = true;
-                // ⚠️ not the perfect hit box our sprite character is bigger
 
-                player.collider = {10, 10, 12, 26};
+                // ⚠️ not the perfect hit box our sprite character is bigger
+                player.collider = {20, 12, 20, 50};
 
                 gs.layers[LAYER_IDX_CHARACTERS].push_back(player);
                 gs.playerIndex = gs.layers[LAYER_IDX_CHARACTERS].size() - 1;
@@ -709,9 +735,9 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
      */
     short map[MAP_ROWS][MAP_COLS] = {
         // clang-format off
-        {0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,2,2,0,0,0,0,0,2,0,2,2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
         // clang-format on
@@ -720,8 +746,8 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
     short background[MAP_ROWS][MAP_COLS] = {
         // clang-format off
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         // clang-format on
@@ -756,7 +782,7 @@ void handleKeyInput(
         return;
     }
 
-    const float JUMP_FORCE = -100.0f;
+    const float JUMP_FORCE = -600.0f;
 
     switch (obj.data.player.state) {
     case PlayerState::IDLE: {
