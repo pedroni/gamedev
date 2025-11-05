@@ -516,10 +516,11 @@ void update(
             glm::vec2(0, 2000.0f) * deltaTime; // apply downward force to objects
     }
 
+    // 0 means pressing neither A or D or BOTH
+    float currentDirection = 0;
+
     if (obj.type == ObjectType::PLAYER) {
         // input handling for the player
-        // 0 means pressing neither A or D or BOTH
-        float currentDirection = 0;
 
         // add one when A or D is pressed
         if (state.keys[SDL_SCANCODE_A]) {
@@ -532,10 +533,6 @@ void update(
 
         // .. if both are pressed it becomes 0, and the character doesn't walk, because it
         // subtracts 1 (A-left) and then sums 1 (D-right)
-
-        if (currentDirection != 0) {
-            obj.direction = currentDirection;
-        }
 
         Timer &weaponTimer = obj.data.player.weaponTimer;
         weaponTimer.step(deltaTime);
@@ -604,13 +601,17 @@ void update(
             obj.currentAnimation = res.ANIM_PLAYER_JUMP;
         }
         }
+    }
 
-        // accelerates the character by pressing keys
-        obj.velocity += currentDirection * (obj.acceleration * deltaTime);
+    if (currentDirection != 0) {
+        obj.direction = currentDirection;
+    }
 
-        if (std::abs(obj.velocity.x) > obj.maxSpeedX) {
-            obj.velocity.x = currentDirection * obj.maxSpeedX;
-        }
+    // accelerates the character by pressing keys
+    obj.velocity += currentDirection * (obj.acceleration * deltaTime);
+
+    if (std::abs(obj.velocity.x) > obj.maxSpeedX) {
+        obj.velocity.x = currentDirection * obj.maxSpeedX;
     }
 
     // moves the object by velocity overtime
@@ -628,23 +629,26 @@ void update(
             if (&obj != &objB) {
                 checkCollision(state, gs, res, obj, objB, deltaTime);
 
-                // grounded sensor, this creates a pixel line that is at the bottom of the
-                // current object collider
-                SDL_FRect sensor = {
-                    obj.position.x + obj.collider.x,
-                    obj.position.y + obj.collider.y + obj.collider.h,
-                    obj.collider.w,
-                    1};
+                if (objB.type == ObjectType::LEVEL) {
+                    // grounded sensor, this creates a pixel line that is at the bottom of
+                    // the current object collider, it only cheks if its on the ground if
+                    // obj b is level/map
+                    SDL_FRect sensor = {
+                        obj.position.x + obj.collider.x,
+                        obj.position.y + obj.collider.y + obj.collider.h,
+                        obj.collider.w,
+                        1};
 
-                SDL_FRect rectB = {
-                    objB.position.x + objB.collider.x,
-                    objB.position.y + objB.collider.y,
-                    objB.collider.w,
-                    objB.collider.h};
+                    SDL_FRect rectB = {
+                        objB.position.x + objB.collider.x,
+                        objB.position.y + objB.collider.y,
+                        objB.collider.w,
+                        objB.collider.h};
 
-                SDL_FRect rectC = {0, 0, 0, 0};
-                if (SDL_GetRectIntersectionFloat(&sensor, &rectB, &rectC)) {
-                    foundGround = true;
+                    SDL_FRect rectC = {0, 0, 0, 0};
+                    if (SDL_GetRectIntersectionFloat(&sensor, &rectB, &rectC)) {
+                        foundGround = true;
+                    }
                 }
             }
         }
@@ -796,12 +800,16 @@ void handleShooting(
         0,
         static_cast<float>(res.bulletTexture->h),
         static_cast<float>(res.bulletTexture->h)};
+
+    bullet.maxSpeedX = 1000.0f;
     bullet.velocity = glm::vec2(obj.direction * (obj.velocity.x + 600.0f), 0);
+
     bullet.position = glm::vec2(
         // we need to offset the direction when going right because of
         // flip offset in the drawObject function
         obj.position.x + (obj.direction == 1 ? 48 : 0),
         obj.position.y + 16);
+
     gs.bullets.push_back(bullet);
 }
 
