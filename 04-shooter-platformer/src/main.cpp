@@ -3,6 +3,7 @@
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
 #include "SDL3/SDL_scancode.h"
+#include "SDL3/SDL_stdinc.h"
 #include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
@@ -367,6 +368,12 @@ int main(int argc, char *argv[]) {
         // draw bullets
         for (GameObject &bullet : gs.bullets) {
             assert(bullet.type == ObjectType::BULLET);
+
+            if (bullet.data.bullet.state == BulletState::INACTIVE) {
+                // dont render inactive bullets
+                continue;
+            }
+
             drawObject(
                 state,
                 gs,
@@ -609,14 +616,29 @@ void update(
         }
         }
     } else if (obj.type == ObjectType::BULLET) {
-        float bulletXDiff = obj.position.x - gs.mapViewport.x;
-        float bulletYDiff = obj.position.y - gs.mapViewport.y;
-        // checks if bullet is outside viewport
-        if (bulletXDiff < 0                                // left edge of the screen
-            || bulletXDiff > state.logW                    // right edge of the screen
-            || bulletYDiff < 0 || bulletYDiff > state.logH // checks veritcal axis
-        ) {
-            obj.data.bullet.state = BulletState::INACTIVE;
+        switch (obj.data.bullet.state) {
+        case BulletState::MOVING: {
+            // 💡 finite state machine, only goes into inactive if its moving
+            float bulletXDiff = obj.position.x - gs.mapViewport.x;
+            float bulletYDiff = obj.position.y - gs.mapViewport.y;
+            // checks if bullet is outside viewport
+            if (bulletXDiff < 0                                // left edge of the screen
+                || bulletXDiff > state.logW                    // right edge of the screen
+                || bulletYDiff < 0 || bulletYDiff > state.logH // checks veritcal axis
+            ) {
+                obj.data.bullet.state = BulletState::INACTIVE;
+            }
+
+            break;
+        }
+        case BulletState::COLLIDING: {
+            // 💡 this creates a nice animation effect, we wait for the animation to
+            // finish, then sets do inactive, setting to inactive means we no longer
+            // render on the screen
+            if (obj.animations[obj.currentAnimation].isDone()) {
+                obj.data.bullet.state = BulletState::INACTIVE;
+            }
+        }
         }
     }
 
@@ -757,6 +779,7 @@ void collisionResponse(
         case BulletState::MOVING: {
             // if it hits something while moving, its velocity becomes 0
             genericCollisionResponse(objA, objB, rectA, rectB, rectC);
+            objA.velocity *= 0;
             objA.data.bullet.state = BulletState::COLLIDING;
             // ⚠️ this should be set whenever the state changes?
             objA.texture = res.bulletHitTexture;
@@ -848,11 +871,16 @@ void handleShooting(
     bullet.maxSpeedX = 1000.0f;
     bullet.velocity = glm::vec2(obj.direction * (obj.velocity.x + 600.0f), 0);
 
+    // good for random shooting objects, like spamming bullets out of a gun, for our staff
+    // mage this is not really necessary so i set a low value of 10
+    const float yVariation = 10;
+    const float yVaried = SDL_rand(yVariation) - yVariation / 2.0f;
+
     bullet.position = glm::vec2(
         // we need to offset the direction when going right because of
         // flip offset in the drawObject function
         obj.position.x + (obj.direction == 1 ? 48 : 0),
-        obj.position.y + 16);
+        obj.position.y + 16 + yVaried);
 
     bool foundInactive = false;
     for (unsigned long i = 0; i < gs.bullets.size(); i++) {

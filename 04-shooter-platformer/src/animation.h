@@ -17,6 +17,8 @@ class Animation {
         return static_cast<int>(timer.getTime() / timer.getDuration() * frameCount);
     }
     void step(float deltaTime) { timer.step(deltaTime); }
+
+    bool isDone() const { return timer.isTimeout(); }
 };
 
 #endif
