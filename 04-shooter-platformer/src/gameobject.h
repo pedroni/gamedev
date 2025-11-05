@@ -19,7 +19,7 @@ struct PlayerData {
     // cool. I imagine a skill system where we'd have a specific timer for each skill in
     // the game. so we'd have a SkillObject or something like that would have their
     // specific timers for when they're cast
-    PlayerData() : weaponTimer(0.3) { state = PlayerState::IDLE; }
+    PlayerData() : weaponTimer(0.8) { state = PlayerState::IDLE; }
 };
 
 struct LevelData {};

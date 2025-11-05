@@ -13,6 +13,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3_image/SDL_image.h>
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -54,12 +55,16 @@ struct GameState {
 
     float bg2Scroll, bg3Scroll, bg4Scroll, bg5Scroll;
 
+    bool debugMode;
+
     GameState(const SDLState &state) {
         playerIndex = -1; // will change automatically on map loading
         mapViewport =
             {0, 0, static_cast<float>(state.logW), static_cast<float>(state.logH)};
 
         bg2Scroll = bg3Scroll = bg4Scroll = bg5Scroll = 0;
+
+        debugMode = false;
     }
 
     GameObject &player() { return layers[LAYER_IDX_CHARACTERS][playerIndex]; };
@@ -71,6 +76,7 @@ struct Resources {
     const int ANIM_PLAYER_RUN = 2;
     const int ANIM_PLAYER_JUMP = 3;
     const int ANIM_PLAYER_SLIDE = 4;
+    const int ANIM_PLAYER_SHOOTING = 4;
     std::vector<Animation> playerAnims;
 
     const int ANIM_BULLET_MOVING = 0;
@@ -79,8 +85,8 @@ struct Resources {
 
     std::vector<SDL_Texture *> textures;
     SDL_Texture *idleTexture, *runTexture, *walkTexture, *slideTexture, *jumpTexture,
-        *grassTexture, *groundTexture, *panelTexture, *brickTexture, *bg1Texture,
-        *bg2Texture, *bg3Texture, *bg4Texture, *bg5Texture, *bulletTexture,
+        *shootingTexture, *grassTexture, *groundTexture, *panelTexture, *brickTexture,
+        *bg1Texture, *bg2Texture, *bg3Texture, *bg4Texture, *bg5Texture, *bulletTexture,
         *bulletHitTexture;
 
     SDL_Texture *loadTexture(SDL_Renderer *renderer, const std::string &filePath) {
@@ -104,7 +110,8 @@ struct Resources {
         playerAnims[ANIM_PLAYER_WALK] = Animation(7, 0.8);
         playerAnims[ANIM_PLAYER_RUN] = Animation(8, 0.5);
         playerAnims[ANIM_PLAYER_JUMP] = Animation(8, 2);
-        playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 0.1);
+        playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 1);
+        playerAnims[ANIM_PLAYER_SHOOTING] = Animation(13, 1);
 
         bulletAnims.resize(2);
         bulletAnims[ANIM_BULLET_MOVING] = Animation(4, 0.5f);
@@ -116,6 +123,8 @@ struct Resources {
         walkTexture = loadTexture(state.renderer, "./assets/prototype/HMMWalkStaff.png");
         jumpTexture = loadTexture(state.renderer, "./assets/prototype/HMMJumpStaff.png");
         slideTexture = loadTexture(state.renderer, "./assets/prototype/HMMRunStaff.png");
+        shootingTexture =
+            loadTexture(state.renderer, "./assets/prototype/HMMStaffCast.png");
         //
         // idleTexture = loadTexture(state.renderer, "./assets/light/Idle.png");
         // runTexture = loadTexture(state.renderer, "./assets/light/Run.png");
@@ -195,7 +204,11 @@ void handleShooting(
     GameState &gs,
     Resources &res,
     GameObject &obj,
-    Timer &weaponTimer);
+    Timer &weaponTimer,
+    SDL_Texture *texture,
+    SDL_Texture *shootingTexture,
+    int animIndex,
+    int shootAnimIndex);
 
 int main(int argc, char *argv[]) {
     (void)argc;
@@ -251,6 +264,9 @@ int main(int argc, char *argv[]) {
             }
             case SDL_EVENT_KEY_UP: {
                 handleKeyInput(state, gs, gs.player(), event.key.scancode, false);
+                if (event.key.scancode == SDL_SCANCODE_BACKSLASH) {
+                    gs.debugMode = !gs.debugMode;
+                }
                 break;
             }
             }
@@ -364,17 +380,18 @@ int main(int argc, char *argv[]) {
         }
 
         // display some debug info
-        SDL_SetRenderDrawColor(state.renderer, 10, 0, 0, 255);
-        SDL_RenderDebugText(
-            state.renderer,
-            8,
-            8,
-            formatText(
-                "State: %d, Bullets: %d, Grounded: %d",
-                gs.player().data.player.state,
-                gs.bullets.size(),
-                gs.player().grounded));
-
+        if (gs.debugMode) {
+            SDL_SetRenderDrawColor(state.renderer, 10, 0, 0, 255);
+            SDL_RenderDebugText(
+                state.renderer,
+                8,
+                8,
+                formatText(
+                    "State: %d, Bullets: %d, Grounded: %d",
+                    gs.player().data.player.state,
+                    gs.bullets.size(),
+                    gs.player().grounded));
+        }
         // swab buffers and present
         SDL_RenderPresent(state.renderer);
     }
@@ -474,13 +491,16 @@ void drawObject(
         NULL,
         obj.direction == 1 ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
 
-    SDL_FRect colliderDebugRect{
-        obj.collider.x + obj.position.x - gs.mapViewport.x,
-        obj.collider.y + obj.position.y,
-        obj.collider.w,
-        obj.collider.h,
-    };
-    SDL_RenderRect(state.renderer, &colliderDebugRect);
+    if (gs.debugMode) {
+        SDL_FRect colliderDebugRect{
+            obj.collider.x + obj.position.x - gs.mapViewport.x,
+            obj.collider.y + obj.position.y,
+            obj.collider.w,
+            obj.collider.h,
+        };
+        SDL_SetRenderDrawColor(state.renderer, 255, 0, 0, 122);
+        SDL_RenderRect(state.renderer, &colliderDebugRect);
+    }
 }
 
 void update(
@@ -491,7 +511,7 @@ void update(
     float deltaTime) {
 
     // apply gravity to dynamic objects
-    if (obj.dynamic) {
+    if (obj.dynamic && !obj.grounded) {
         obj.velocity +=
             glm::vec2(0, 2000.0f) * deltaTime; // apply downward force to objects
     }
@@ -550,9 +570,16 @@ void update(
                 }
             }
 
-            handleShooting(state, gs, res, obj, weaponTimer);
-            obj.texture = res.idleTexture;
-            obj.currentAnimation = res.ANIM_PLAYER_IDLE;
+            handleShooting(
+                state,
+                gs,
+                res,
+                obj,
+                weaponTimer,
+                res.idleTexture,
+                res.shootingTexture,
+                res.ANIM_PLAYER_IDLE,
+                res.ANIM_PLAYER_SHOOTING);
             break;
         }
         case PlayerState::WALKING: {
@@ -615,7 +642,8 @@ void update(
                     objB.collider.w,
                     objB.collider.h};
 
-                if (SDL_HasRectIntersectionFloat(&sensor, &rectB)) {
+                SDL_FRect rectC = {0, 0, 0, 0};
+                if (SDL_GetRectIntersectionFloat(&sensor, &rectB, &rectC)) {
                     foundGround = true;
                 }
             }
@@ -678,12 +706,11 @@ void collisionResponse(
 
                 objA.velocity.x = 0; // prevent the player from moving
             } else {
-                // vertical collision, when falling/jumping Y
-                if (objA.velocity.y > 0) { // going up, positive velocity
+                // vertical collision, when jumping or falling Y
+                if (objA.velocity.y > 0) { // going down, positive velocity
                     // "teleport" the character back the size of collision
                     objA.position.y -= rectC.h;
-                } else if (objA.velocity.y < 0) { // negative velocity y, means going
-                                                  // down/falling gravity
+                } else if (objA.velocity.y < 0) { // negative velocity y, means going up
                     // "teleport" the character back the size of collision
                     objA.position.y += rectC.h;
                 }
@@ -729,11 +756,28 @@ void handleShooting(
     GameState &gs,
     Resources &res,
     GameObject &obj,
-    Timer &weaponTimer) {
+    Timer &weaponTimer,
+    SDL_Texture *texture,
+    SDL_Texture *shootingTexture,
+    int animIndex,
+    int shootAnimIndex) {
 
     if (!state.keys[SDL_SCANCODE_J]) {
+        // if the key was released cancel the cast
+        // ⚠️ actually i'd prefer that the cast was canceled on ESC? like fw or not
+        // cancelled at all like Elden Ring, so if you commited to it, you'll cast it, it
+        // takes a whole second to shoot at the current setup
+        //
+        // there's a current bug when sliding. and trying to shoot, i guess we need to
+        // enforce that velocity is 0 before firing the weapon
+        weaponTimer.reset();
+        obj.texture = texture;
+        obj.currentAnimation = animIndex;
         return;
     }
+
+    obj.texture = shootingTexture;
+    obj.currentAnimation = shootAnimIndex;
 
     if (!weaponTimer.isTimeout()) {
         return;
@@ -757,7 +801,7 @@ void handleShooting(
         // we need to offset the direction when going right because of
         // flip offset in the drawObject function
         obj.position.x + (obj.direction == 1 ? 48 : 0),
-        obj.position.y + 30);
+        obj.position.y + 16);
     gs.bullets.push_back(bullet);
 }
 
