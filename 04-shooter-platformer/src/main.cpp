@@ -190,6 +190,13 @@ void loadMap(
     GameState &gs,
     Resources &res,
     short layer[MAP_ROWS][MAP_COLS]);
+void handleShooting(
+    const SDLState &state,
+    GameState &gs,
+    Resources &res,
+    GameObject &obj,
+    Timer &weaponTimer);
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -362,7 +369,11 @@ int main(int argc, char *argv[]) {
             state.renderer,
             8,
             8,
-            formatText("State: %d, yPos: %d", gs.player().data.player.state, 0));
+            formatText(
+                "State: %d, Bullets: %d, Grounded: %d",
+                gs.player().data.player.state,
+                gs.bullets.size(),
+                gs.player().grounded));
 
         // swab buffers and present
         SDL_RenderPresent(state.renderer);
@@ -539,32 +550,7 @@ void update(
                 }
             }
 
-            if (state.keys[SDL_SCANCODE_J]) {
-                if (weaponTimer.isTimeout()) {
-                    weaponTimer.reset();
-                    // spawn some bullets
-                    GameObject bullet;
-                    bullet.type = ObjectType::BULLET;
-                    bullet.direction = obj.direction;
-                    bullet.texture = res.bulletTexture;
-                    bullet.animations = res.bulletAnims;
-                    bullet.currentAnimation = res.ANIM_BULLET_MOVING;
-                    bullet.collider = SDL_FRect{
-                        0,
-                        0,
-                        static_cast<float>(res.bulletTexture->h),
-                        static_cast<float>(res.bulletTexture->h)};
-                    bullet.velocity =
-                        glm::vec2(obj.direction * (obj.velocity.x + 600.0f), 0);
-                    bullet.position = glm::vec2(
-                        // we need to offset the direction when going right because of
-                        // flip offset in the drawObject function
-                        obj.position.x + (obj.direction == 1 ? 48 : 0),
-                        obj.position.y + 30);
-                    gs.bullets.push_back(bullet);
-                }
-            }
-
+            handleShooting(state, gs, res, obj, weaponTimer);
             obj.texture = res.idleTexture;
             obj.currentAnimation = res.ANIM_PLAYER_IDLE;
             break;
@@ -737,6 +723,43 @@ void checkCollision(
         collisionResponse(state, gs, res, objA, objB, rectA, rectB, rectC, deltaTime);
     }
 };
+
+void handleShooting(
+    const SDLState &state,
+    GameState &gs,
+    Resources &res,
+    GameObject &obj,
+    Timer &weaponTimer) {
+
+    if (!state.keys[SDL_SCANCODE_J]) {
+        return;
+    }
+
+    if (!weaponTimer.isTimeout()) {
+        return;
+    }
+
+    weaponTimer.reset();
+    // spawn some bullets
+    GameObject bullet;
+    bullet.type = ObjectType::BULLET;
+    bullet.direction = obj.direction;
+    bullet.texture = res.bulletTexture;
+    bullet.animations = res.bulletAnims;
+    bullet.currentAnimation = res.ANIM_BULLET_MOVING;
+    bullet.collider = SDL_FRect{
+        0,
+        0,
+        static_cast<float>(res.bulletTexture->h),
+        static_cast<float>(res.bulletTexture->h)};
+    bullet.velocity = glm::vec2(obj.direction * (obj.velocity.x + 600.0f), 0);
+    bullet.position = glm::vec2(
+        // we need to offset the direction when going right because of
+        // flip offset in the drawObject function
+        obj.position.x + (obj.direction == 1 ? 48 : 0),
+        obj.position.y + 30);
+    gs.bullets.push_back(bullet);
+}
 
 void loadMap(
     const SDLState &state,
