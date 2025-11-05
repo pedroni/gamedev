@@ -26,16 +26,19 @@ struct LevelData {};
 struct EnemyData {};
 struct BulletData {
     BulletState state;
+    // ⚠️ every object has this data
     BulletData() { state = BulletState::MOVING; }
 };
 
-union ObjectData {
+// 🚨 in the original course its a union but for c++98 / c++11 we can't do that, we do
+// have to manager pointers for simplicity i made this a struct, though it's badly
+// optimized because now all objects in our game contains all this data stored in memory,
+// even though we're not using it
+struct ObjectData {
     PlayerData player;
     EnemyData enemy;
     LevelData level;
     BulletData bullet;
-
-    ObjectData() { player = PlayerData(); }
 };
 
 enum class ObjectType { PLAYER, LEVEL, ENEMY, BULLET };

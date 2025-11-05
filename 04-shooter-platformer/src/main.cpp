@@ -210,6 +210,13 @@ void handleShooting(
     int animIndex,
     int shootAnimIndex);
 
+void genericCollisionResponse(
+    GameObject &objA,
+    GameObject &objB,
+    SDL_FRect &rectA,
+    SDL_FRect &rectB,
+    SDL_FRect &rectC);
+
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -688,6 +695,43 @@ GameObject createObject(
     return obj;
 };
 
+// this prevents the objects from being in the same position, it shifts objects around
+// when they're colliding, rolling back them to their original position
+void genericCollisionResponse(
+    GameObject &objA,
+    GameObject &objB,
+    SDL_FRect &rectA,
+    SDL_FRect &rectB,
+    SDL_FRect &rectC) {
+    if (rectC.w < rectC.h) {
+        // if height is bigger than width
+        // horizontal collision, when walking X
+
+        if (objA.velocity.x > 0) { // going right, positive velocity
+            // "teleport" the character back the size of collision
+            objA.position.x -= rectC.w;
+
+        } else if (objA.velocity.x < 0) { // negative velocity x, means going left
+            // should be less than 0, because we don't want to do anything if its
+            // 0 "teleport" the character back the size of collision
+            objA.position.x += rectC.w;
+        }
+
+        objA.velocity.x = 0; // prevent the player from moving
+    } else {
+        // vertical collision, when jumping or falling Y
+        if (objA.velocity.y > 0) { // going down, positive velocity
+            // "teleport" the character back the size of collision
+            objA.position.y -= rectC.h;
+        } else if (objA.velocity.y < 0) { // negative velocity y, means going up
+            // "teleport" the character back the size of collision
+            objA.position.y += rectC.h;
+        }
+        objA.velocity.y = 0; // prevent the player from moving
+    }
+}
+
+// this function does something once the collision happens
 void collisionResponse(
     const SDLState &state,
     GameState &gs,
@@ -698,38 +742,26 @@ void collisionResponse(
     SDL_FRect &rectB,
     SDL_FRect &rectC,
     float deltaTime) {
+
     // object we're checking
     if (objA.type == ObjectType::PLAYER) {
 
         // object it is colliding with
         switch (objB.type) {
         case ObjectType::LEVEL: {
-            if (rectC.w < rectC.h) {
-                // if height is bigger than width
-                // horizontal collision, when walking X
-
-                if (objA.velocity.x > 0) { // going right, positive velocity
-                    // "teleport" the character back the size of collision
-                    objA.position.x -= rectC.w;
-
-                } else if (objA.velocity.x < 0) { // negative velocity x, means going left
-                    // should be less than 0, because we don't want to do anything if its
-                    // 0 "teleport" the character back the size of collision
-                    objA.position.x += rectC.w;
-                }
-
-                objA.velocity.x = 0; // prevent the player from moving
-            } else {
-                // vertical collision, when jumping or falling Y
-                if (objA.velocity.y > 0) { // going down, positive velocity
-                    // "teleport" the character back the size of collision
-                    objA.position.y -= rectC.h;
-                } else if (objA.velocity.y < 0) { // negative velocity y, means going up
-                    // "teleport" the character back the size of collision
-                    objA.position.y += rectC.h;
-                }
-                objA.velocity.y = 0; // prevent the player from moving
-            }
+            genericCollisionResponse(objA, objB, rectA, rectB, rectC);
+        }
+        }
+    } else if (objA.type == ObjectType::BULLET) {
+        switch (objA.data.bullet.state) {
+        case BulletState::MOVING: {
+            // if it hits something while moving, its velocity becomes 0
+            genericCollisionResponse(objA, objB, rectA, rectB, rectC);
+            objA.data.bullet.state = BulletState::COLLIDING;
+            // ⚠️ this should be set whenever the state changes?
+            objA.texture = res.bulletHitTexture;
+            objA.currentAnimation = res.ANIM_BULLET_HIT;
+            break;
         }
         }
     }
@@ -800,6 +832,8 @@ void handleShooting(
     weaponTimer.reset();
     // spawn some bullets
     GameObject bullet;
+    bullet.data.bullet = BulletData();
+    bullet.data.bullet.state = BulletState::MOVING;
     bullet.type = ObjectType::BULLET;
     bullet.direction = obj.direction;
     bullet.texture = res.bulletTexture;
@@ -863,6 +897,7 @@ void loadMap(
                 GameObject player =
                     createObject(state, row, col, ObjectType::PLAYER, res.idleTexture);
                 player.data.player = PlayerData();
+                player.data.player.state = PlayerState::IDLE;
                 player.animations = res.playerAnims;
                 player.currentAnimation = res.ANIM_PLAYER_IDLE;
                 // when pressing the "acelerador" do carro ele acelera 300
