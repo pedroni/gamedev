@@ -23,7 +23,10 @@ class Timer {
     bool isTimeout() const { return timeout; }
     float getTime() const { return time; }
     float getDuration() const { return duration; };
-    void reset() { time = 0; }
+    void reset() {
+        time = 0;
+        timeout = false;
+    }
 };
 
 #endif

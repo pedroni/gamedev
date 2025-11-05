@@ -9,6 +9,7 @@
 #include "animation.h"
 #include "gameobject.h"
 #include "state.h"
+#include "timer.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3_image/SDL_image.h>
@@ -42,6 +43,7 @@ struct GameState {
     // here for aesthetics reasons, don't collide with the player
     std::vector<GameObject> backgroundTiles;
     std::vector<GameObject> foregroundTiles;
+    std::vector<GameObject> bullets;
 
     // so we know where the placer is at
     int playerIndex;
@@ -69,12 +71,17 @@ struct Resources {
     const int ANIM_PLAYER_RUN = 2;
     const int ANIM_PLAYER_JUMP = 3;
     const int ANIM_PLAYER_SLIDE = 4;
-
     std::vector<Animation> playerAnims;
+
+    const int ANIM_BULLET_MOVING = 0;
+    const int ANIM_BULLET_HIT = 1;
+    std::vector<Animation> bulletAnims;
+
     std::vector<SDL_Texture *> textures;
     SDL_Texture *idleTexture, *runTexture, *walkTexture, *slideTexture, *jumpTexture,
         *grassTexture, *groundTexture, *panelTexture, *brickTexture, *bg1Texture,
-        *bg2Texture, *bg3Texture, *bg4Texture, *bg5Texture;
+        *bg2Texture, *bg3Texture, *bg4Texture, *bg5Texture, *bulletTexture,
+        *bulletHitTexture;
 
     SDL_Texture *loadTexture(SDL_Renderer *renderer, const std::string &filePath) {
         SDL_Texture *texture = IMG_LoadTexture(renderer, filePath.c_str());
@@ -98,6 +105,10 @@ struct Resources {
         playerAnims[ANIM_PLAYER_RUN] = Animation(8, 0.5);
         playerAnims[ANIM_PLAYER_JUMP] = Animation(8, 2);
         playerAnims[ANIM_PLAYER_SLIDE] = Animation(1, 0.1);
+
+        bulletAnims.resize(2);
+        bulletAnims[ANIM_BULLET_MOVING] = Animation(4, 0.5f);
+        bulletAnims[ANIM_BULLET_HIT] = Animation(4, 0.15f);
 
         // player
         idleTexture = loadTexture(state.renderer, "./assets/prototype/HMMIdleStaff.png");
@@ -124,6 +135,10 @@ struct Resources {
         bg3Texture = loadTexture(state.renderer, "./assets/map/bg/back_trees.png");
         bg4Texture = loadTexture(state.renderer, "./assets/map/bg/hills.png");
         bg5Texture = loadTexture(state.renderer, "./assets/map/bg/clouds.png");
+
+        // bullets
+        bulletTexture = loadTexture(state.renderer, "./assets/bullet.png");
+        bulletHitTexture = loadTexture(state.renderer, "./assets/bullet_hit.png");
     }
     void unload() {
         for (auto *texture : textures) {
@@ -140,7 +155,13 @@ void update(
     Resources &res,
     GameObject &obj,
     float deltaTime);
-void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime);
+void drawObject(
+    const SDLState &state,
+    GameState &gs,
+    GameObject &obj,
+    const float srcSize,
+    const float destSize,
+    float deltaTime);
 GameObject createObject(const SDLState &state, int r, int c, ObjectType type);
 void createTiles(const SDLState &state, GameState &gs, Resources &res);
 void checkCollision(
@@ -240,6 +261,18 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        // update bullets
+
+        for (GameObject &obj : gs.bullets) {
+            assert(obj.type == ObjectType::BULLET);
+            update(state, gs, res, obj, deltaTime);
+
+            // step animation
+            if (obj.currentAnimation != -1) {
+                obj.animations[obj.currentAnimation].step(deltaTime);
+            }
+        }
+
         // calculate viewport / camera position
         gs.mapViewport.x = (gs.player().position.x + static_cast<float>(TILE_SIZE) / 2) -
                            gs.mapViewport.w / 2;
@@ -295,8 +328,22 @@ int main(int argc, char *argv[]) {
         // draw all objects
         for (std::vector<GameObject> &layer : gs.layers) {
             for (GameObject &obj : layer) {
-                drawObject(state, gs, obj, deltaTime);
+                const float srcSize = obj.type == ObjectType::PLAYER ? 256 : TILE_SIZE;
+                const float destSize = obj.type == ObjectType::PLAYER ? 64 : TILE_SIZE;
+                drawObject(state, gs, obj, srcSize, destSize, deltaTime);
             }
+        }
+
+        // draw bullets
+        for (GameObject &bullet : gs.bullets) {
+            assert(bullet.type == ObjectType::BULLET);
+            drawObject(
+                state,
+                gs,
+                bullet,
+                bullet.collider.w,
+                bullet.collider.h,
+                deltaTime);
         }
 
         // draw foreground objects
@@ -379,17 +426,20 @@ void cleanup(SDLState &state) {
     SDL_Quit();
 }
 
-void drawObject(const SDLState &state, GameState &gs, GameObject &obj, float deltaTime) {
-
-    const float spriteSize = obj.type == ObjectType::PLAYER ? 256 : TILE_SIZE;
-    const float destSize = obj.type == ObjectType::PLAYER ? 64 : TILE_SIZE;
+void drawObject(
+    const SDLState &state,
+    GameState &gs,
+    GameObject &obj,
+    float srcSize,
+    float destSize,
+    float deltaTime) {
 
     // move the sprite position
     float srcX = obj.currentAnimation != -1
-                     ? obj.animations[obj.currentAnimation].currentFrame() * spriteSize
+                     ? obj.animations[obj.currentAnimation].currentFrame() * srcSize
                      : 0.0f;
 
-    SDL_FRect srcRect = {srcX, 0, spriteSize, spriteSize};
+    SDL_FRect srcRect = {srcX, 0, srcSize, srcSize};
 
     // the viewport applied here shifts the position of where things are drawn on the
     // screen. note that we don't mess with the obj actual position in the world, but with
@@ -456,6 +506,9 @@ void update(
             obj.direction = currentDirection;
         }
 
+        Timer &weaponTimer = obj.data.player.weaponTimer;
+        weaponTimer.step(deltaTime);
+
         PlayerState &playerState = obj.data.player.state;
         switch (playerState) {
         case PlayerState::IDLE: {
@@ -485,6 +538,33 @@ void update(
                     }
                 }
             }
+
+            if (state.keys[SDL_SCANCODE_J]) {
+                if (weaponTimer.isTimeout()) {
+                    weaponTimer.reset();
+                    // spawn some bullets
+                    GameObject bullet;
+                    bullet.type = ObjectType::BULLET;
+                    bullet.direction = obj.direction;
+                    bullet.texture = res.bulletTexture;
+                    bullet.animations = res.bulletAnims;
+                    bullet.currentAnimation = res.ANIM_BULLET_MOVING;
+                    bullet.collider = SDL_FRect{
+                        0,
+                        0,
+                        static_cast<float>(res.bulletTexture->h),
+                        static_cast<float>(res.bulletTexture->h)};
+                    bullet.velocity =
+                        glm::vec2(obj.direction * (obj.velocity.x + 600.0f), 0);
+                    bullet.position = glm::vec2(
+                        // we need to offset the direction when going right because of
+                        // flip offset in the drawObject function
+                        obj.position.x + (obj.direction == 1 ? 48 : 0),
+                        obj.position.y + 30);
+                    gs.bullets.push_back(bullet);
+                }
+            }
+
             obj.texture = res.idleTexture;
             obj.currentAnimation = res.ANIM_PLAYER_IDLE;
             break;
@@ -555,6 +635,7 @@ void update(
             }
         }
     }
+
     // if they're different it means that we're changing state
     if (obj.grounded != foundGround) {
         obj.grounded = foundGround;
@@ -705,7 +786,6 @@ void loadMap(
             }
             case 5: // grass
             {
-
                 GameObject obj =
                     createObject(state, row, col, ObjectType::LEVEL, res.grassTexture);
                 gs.foregroundTiles.push_back(obj);

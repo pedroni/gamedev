@@ -4,28 +4,41 @@
 #include "SDL3/SDL_rect.h"
 #include "SDL3/SDL_render.h"
 #include "animation.h"
+#include "timer.h"
 #include <glm/glm.hpp>
 #include <vector>
 
 enum class PlayerState { IDLE, WALKING, RUNNING, JUMPING };
+enum class BulletState { MOVING, COLLIDING, INACTIVE };
 
 struct PlayerData {
     PlayerState state;
-    PlayerData() { state = PlayerState::IDLE; }
+    Timer weaponTimer;
+
+    // weapon timer here is working like a COOLDOWN to a specific skill! that's fucking
+    // cool. I imagine a skill system where we'd have a specific timer for each skill in
+    // the game. so we'd have a SkillObject or something like that would have their
+    // specific timers for when they're cast
+    PlayerData() : weaponTimer(0.3) { state = PlayerState::IDLE; }
 };
 
 struct LevelData {};
 struct EnemyData {};
+struct BulletData {
+    BulletState state;
+    BulletData() { state = BulletState::MOVING; }
+};
 
 union ObjectData {
     PlayerData player;
     EnemyData enemy;
     LevelData level;
+    BulletData bullet;
 
     ObjectData() { player = PlayerData(); }
 };
 
-enum class ObjectType { PLAYER, LEVEL, ENEMY };
+enum class ObjectType { PLAYER, LEVEL, ENEMY, BULLET };
 
 // every single object in the game
 struct GameObject {
