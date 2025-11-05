@@ -601,6 +601,16 @@ void update(
             obj.currentAnimation = res.ANIM_PLAYER_JUMP;
         }
         }
+    } else if (obj.type == ObjectType::BULLET) {
+        float bulletXDiff = obj.position.x - gs.mapViewport.x;
+        float bulletYDiff = obj.position.y - gs.mapViewport.y;
+        // checks if bullet is outside viewport
+        if (bulletXDiff < 0                                // left edge of the screen
+            || bulletXDiff > state.logW                    // right edge of the screen
+            || bulletYDiff < 0 || bulletYDiff > state.logH // checks veritcal axis
+        ) {
+            obj.data.bullet.state = BulletState::INACTIVE;
+        }
     }
 
     if (currentDirection != 0) {
@@ -810,7 +820,18 @@ void handleShooting(
         obj.position.x + (obj.direction == 1 ? 48 : 0),
         obj.position.y + 16);
 
-    gs.bullets.push_back(bullet);
+    bool foundInactive = false;
+    for (unsigned long i = 0; i < gs.bullets.size(); i++) {
+        if (gs.bullets[i].data.bullet.state == BulletState::INACTIVE) {
+            foundInactive = true;
+            gs.bullets[i] = bullet;
+            break;
+        }
+    }
+
+    if (!foundInactive) {
+        gs.bullets.push_back(bullet);
+    }
 }
 
 void loadMap(
