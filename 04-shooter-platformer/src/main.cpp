@@ -686,7 +686,40 @@ void update(
         }
     } else if (obj.type == ObjectType::ENEMY) {
         switch (obj.data.enemy.state) {
+        case EnemyState::IDLE: {
+            obj.currentAnimation = res.ANIM_ENEMY_IDLE;
+            obj.texture = res.enemyIdleTexture;
+            // 💡 enemy AI  in idle and walking state so that it get "aggroed" by the
+            // player whenever the player is close enough
+
+            glm::vec2 playerDir = gs.player().position - obj.position;
+            // check if player is close, starts walking
+            if (glm::length(playerDir) < 200) {
+                obj.data.enemy.state = EnemyState::WALKING;
+            } else {
+                obj.acceleration = glm::vec2(0);
+                obj.velocity.x = 0;
+            }
+            break;
+        }
+        case EnemyState::WALKING: {
+            obj.currentAnimation = res.ANIM_ENEMY_WALK;
+            obj.texture = res.enemyWalkTexture;
+            glm::vec2 playerDir = gs.player().position - obj.position;
+            // check if player is close, starts walking
+            if (glm::length(playerDir) < 200) {
+                currentDirection = playerDir.x < 0 ? -1 : 1;
+                obj.acceleration = glm::vec2(100, 0);
+            } else {
+                obj.data.enemy.state = EnemyState::IDLE;
+            }
+            break;
+        }
         case EnemyState::DAMAGED: {
+            obj.acceleration = glm::vec2(0);
+            obj.velocity.x = 0;
+
+            // obj.acceleration = glm::vec2(0);
             if (obj.data.enemy.damagedTimer.step(deltaTime)) {
                 obj.data.enemy.state = EnemyState::IDLE;
                 obj.texture = res.enemyIdleTexture;
@@ -695,6 +728,7 @@ void update(
             break;
         }
         case EnemyState::DEAD: {
+            obj.velocity.x = 0;
             if (obj.currentAnimation != -1 &&
                 obj.animations[obj.currentAnimation].isDone()) {
                 // 💡 to stop an animation set to -1
@@ -702,6 +736,7 @@ void update(
                 obj.currentAnimation = -1;
                 obj.spriteFrame = 4;
             }
+            break;
         }
         }
     }
@@ -890,6 +925,10 @@ void collisionResponse(
             break;
         }
         }
+    } else if (objA.type == ObjectType::ENEMY) {
+        if (objB.type != ObjectType::PLAYER) {
+            genericCollisionResponse(objA, objB, rectA, rectB, rectC);
+        }
     }
 }
 
@@ -1030,10 +1069,12 @@ void loadMap(
                     col,
                     ObjectType::ENEMY,
                     res.enemyIdleTexture);
+                obj.data.enemy.state = EnemyState::IDLE;
                 obj.animations = res.enemyAnims;
                 obj.currentAnimation = res.ANIM_ENEMY_IDLE;
                 obj.dynamic = true;
                 obj.collider = {50, 70, 20, 58};
+                obj.maxSpeedX = 100;
 
                 gs.layers[LAYER_IDX_CHARACTERS].push_back(obj);
                 break;
@@ -1093,7 +1134,7 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
      */
     short map[MAP_ROWS][MAP_COLS] = {
         // clang-format off
-        {0,0,0,0,0,3,4,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,3,4,0,0,0,0,3,0,3,0,0,0,2,2,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,2,2,0,0,0,0,0,2,0,2,2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
