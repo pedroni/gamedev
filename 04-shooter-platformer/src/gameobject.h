@@ -20,14 +20,16 @@ struct PlayerData {
     // cool. I imagine a skill system where we'd have a specific timer for each skill in
     // the game. so we'd have a SkillObject or something like that would have their
     // specific timers for when they're cast
-    PlayerData() : state(PlayerState::IDLE), weaponTimer(0.8) {}
+    PlayerData() : state(PlayerState::IDLE), weaponTimer(0.8f) {}
 };
 
 struct LevelData {};
 
 struct EnemyData {
     EnemyState state;
-    EnemyData() : state(EnemyState::IDLE) {}
+    Timer damagedTimer;
+    int health;
+    EnemyData() : state(EnemyState::IDLE), damagedTimer(0.5f), health(20) {}
 };
 
 struct BulletData {
@@ -75,7 +77,12 @@ struct GameObject {
 
     bool grounded;
 
-    GameObject() {
+    Timer flashTimer;
+    bool shouldFlash;
+
+    int animationFrame;
+
+    GameObject() : flashTimer(0.05f) {
         data = ObjectData();
         type = ObjectType::LEVEL;
 
@@ -97,6 +104,10 @@ struct GameObject {
         grounded = false;
 
         texture = NULL;
+
+        shouldFlash = false;
+
+        animationFrame = 1;
     }
 };
 

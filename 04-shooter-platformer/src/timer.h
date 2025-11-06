@@ -8,7 +8,7 @@ class Timer {
 
   public:
     Timer(float length) : duration(length), time(0) {}
-    void step(float deltaTime) {
+    bool step(float deltaTime) {
         time += deltaTime;
 
         // here we could've reset the time to 0, but we don't want that. we might lose a
@@ -21,7 +21,9 @@ class Timer {
             // once the first "iteration/loop" of the sprite sheet has finished
             timeout = true;
             time -= duration;
+            return true;
         }
+        return false;
     }
 
     bool isTimeout() const { return timeout; }

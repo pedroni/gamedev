@@ -522,14 +522,33 @@ void drawObject(
         destSize,
         destSize};
 
-    SDL_RenderTextureRotated(
-        state.renderer,
-        obj.texture,
-        &srcRect,
-        &destRect,
-        0,
-        NULL,
-        obj.direction == 1 ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
+    if (!obj.shouldFlash) {
+        SDL_RenderTextureRotated(
+            state.renderer,
+            obj.texture,
+            &srcRect,
+            &destRect,
+            0,
+            NULL,
+            obj.direction == 1 ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
+
+    } else {
+        // flash objecta with a redish tint,brighten or disaturate the color
+        SDL_SetTextureColorModFloat(obj.texture, 2.5f, 1.0f, 1.0f);
+        SDL_RenderTextureRotated(
+            state.renderer,
+            obj.texture,
+            &srcRect,
+            &destRect,
+            0,
+            NULL,
+            obj.direction == 1 ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL);
+        SDL_SetTextureColorModFloat(obj.texture, 1.0f, 1.0f, 1.0f);
+
+        if (obj.flashTimer.step(deltaTime)) {
+            obj.shouldFlash = false;
+        }
+    }
 
     if (gs.debugMode) {
         SDL_FRect colliderDebugRect{
@@ -549,6 +568,13 @@ void update(
     Resources &res,
     GameObject &obj,
     float deltaTime) {
+
+    // update the animation
+    //
+    // step animation
+    if (obj.currentAnimation != -1) {
+        obj.animations[obj.currentAnimation].step(deltaTime);
+    }
 
     // apply gravity to dynamic objects
     if (obj.dynamic && !obj.grounded) {
@@ -664,6 +690,17 @@ void update(
             if (obj.animations[obj.currentAnimation].isDone()) {
                 obj.data.bullet.state = BulletState::INACTIVE;
             }
+        }
+        }
+    } else if (obj.type == ObjectType::ENEMY) {
+        switch (obj.data.enemy.state) {
+        case EnemyState::DAMAGED: {
+            if (obj.data.enemy.damagedTimer.step(deltaTime)) {
+                obj.data.enemy.state = EnemyState::IDLE;
+                obj.texture = res.enemyIdleTexture;
+                obj.currentAnimation = res.ANIM_ENEMY_IDLE;
+            }
+            break;
         }
         }
     }
@@ -801,15 +838,54 @@ void collisionResponse(
         }
         }
     } else if (objA.type == ObjectType::BULLET) {
+        bool passThrough = false;
         switch (objA.data.bullet.state) {
         case BulletState::MOVING: {
-            // if it hits something while moving, its velocity becomes 0
-            genericCollisionResponse(objA, objB, rectA, rectB, rectC);
-            objA.velocity *= 0;
-            objA.data.bullet.state = BulletState::COLLIDING;
-            // ⚠️ this should be set whenever the state changes?
-            objA.texture = res.bulletHitTexture;
-            objA.currentAnimation = res.ANIM_BULLET_HIT;
+            switch (objB.type) {
+            case ObjectType::LEVEL: {
+                break;
+            }
+            case ObjectType::ENEMY: {
+                EnemyData &data = objB.data.enemy;
+
+                if (data.state != EnemyState::DEAD) {
+                    // ⚠️ i'd like to have events, like "bullet collided" and then the game
+                    // object could listen to it and then perform this actions, this is
+                    // very coupled and easy to make bugs
+                    data.state = EnemyState::DAMAGED;
+                    objB.currentAnimation = res.ANIM_ENEMY_HIT;
+                    objB.texture = res.enemyHitTexture;
+                    objB.shouldFlash = true;
+                    objB.flashTimer.reset();
+                    // bullet damage
+                    data.health -= 10;
+                    if (data.health <= 0) {
+                        // ⚠️ here we probably should have a property "active" in the
+                        // GameObject struct, so that we could set that to true and we
+                        // wouldnt execute anything after active is false, maybe after the
+                        // dead animation is ended though
+                        data.state = EnemyState::DEAD;
+                        objB.texture = res.enemyDeadTexture;
+                        objB.currentAnimation = res.ANIM_ENEMY_DEAD;
+                    }
+                } else {
+                    passThrough = true;
+                }
+                break;
+            }
+            }
+
+            // ⚠️ here we could have a boolean for each GameObject::active and if they're
+            // not active it doesn't do anything with it
+            if (!passThrough) {
+                // if it hits something while moving, its velocity becomes 0
+                genericCollisionResponse(objA, objB, rectA, rectB, rectC);
+                objA.velocity *= 0;
+                objA.data.bullet.state = BulletState::COLLIDING;
+                // ⚠️ this should be set whenever the state changes?
+                objA.texture = res.bulletHitTexture;
+                objA.currentAnimation = res.ANIM_BULLET_HIT;
+            }
             break;
         }
         }
