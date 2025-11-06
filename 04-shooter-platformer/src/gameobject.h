@@ -80,7 +80,7 @@ struct GameObject {
     Timer flashTimer;
     bool shouldFlash;
 
-    int animationFrame;
+    int spriteFrame;
 
     GameObject() : flashTimer(0.05f) {
         data = ObjectData();
@@ -107,7 +107,7 @@ struct GameObject {
 
         shouldFlash = false;
 
-        animationFrame = 1;
+        spriteFrame = 1;
     }
 };
 

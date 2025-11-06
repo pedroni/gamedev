@@ -303,11 +303,6 @@ int main(int argc, char *argv[]) {
         for (std::vector<GameObject> &layer : gs.layers) {
             for (GameObject &obj : layer) {
                 update(state, gs, res, obj, deltaTime);
-
-                // step animation
-                if (obj.currentAnimation != -1) {
-                    obj.animations[obj.currentAnimation].step(deltaTime);
-                }
             }
         }
 
@@ -316,11 +311,6 @@ int main(int argc, char *argv[]) {
         for (GameObject &obj : gs.bullets) {
             assert(obj.type == ObjectType::BULLET);
             update(state, gs, res, obj, deltaTime);
-
-            // step animation
-            if (obj.currentAnimation != -1) {
-                obj.animations[obj.currentAnimation].step(deltaTime);
-            }
         }
 
         // calculate viewport / camera position
@@ -503,9 +493,11 @@ void drawObject(
     float deltaTime) {
 
     // move the sprite position
+    // if current animation is set we keep animating, else we use the sprite frame set on
+    // the game object
     float srcX = obj.currentAnimation != -1
                      ? obj.animations[obj.currentAnimation].currentFrame() * srcSize
-                     : 0.0f;
+                     : (obj.spriteFrame - 1) * srcSize;
 
     SDL_FRect srcRect = {srcX, 0, srcSize, srcSize};
 
@@ -701,6 +693,15 @@ void update(
                 obj.currentAnimation = res.ANIM_ENEMY_IDLE;
             }
             break;
+        }
+        case EnemyState::DEAD: {
+            if (obj.currentAnimation != -1 &&
+                obj.animations[obj.currentAnimation].isDone()) {
+                // 💡 to stop an animation set to -1
+                //  remove animation and set to the last sprite of the spritesheet
+                obj.currentAnimation = -1;
+                obj.spriteFrame = 4;
+            }
         }
         }
     }
