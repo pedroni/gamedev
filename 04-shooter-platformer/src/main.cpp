@@ -84,11 +84,18 @@ struct Resources {
     const int ANIM_BULLET_HIT = 1;
     std::vector<Animation> bulletAnims;
 
+    const int ANIM_ENEMY_IDLE = 0;
+    const int ANIM_ENEMY_WALK = 1;
+    const int ANIM_ENEMY_HIT = 2;
+    const int ANIM_ENEMY_DEAD = 3;
+    std::vector<Animation> enemyAnims;
+
     std::vector<SDL_Texture *> textures;
     SDL_Texture *idleTexture, *runTexture, *walkTexture, *slideTexture, *jumpTexture,
         *shootingTexture, *grassTexture, *groundTexture, *panelTexture, *brickTexture,
         *bg1Texture, *bg2Texture, *bg3Texture, *bg4Texture, *bg5Texture, *bulletTexture,
-        *bulletHitTexture;
+        *bulletHitTexture, *enemyIdleTexture, *enemyWalkTexture, *enemyHitTexture,
+        *enemyDeadTexture;
 
     SDL_Texture *loadTexture(SDL_Renderer *renderer, const std::string &filePath) {
         SDL_Texture *texture = IMG_LoadTexture(renderer, filePath.c_str());
@@ -117,6 +124,12 @@ struct Resources {
         bulletAnims.resize(2);
         bulletAnims[ANIM_BULLET_MOVING] = Animation(4, 0.5f);
         bulletAnims[ANIM_BULLET_HIT] = Animation(4, 0.15f);
+
+        enemyAnims.resize(4);
+        enemyAnims[ANIM_ENEMY_IDLE] = Animation(7, 1.0f);
+        enemyAnims[ANIM_ENEMY_WALK] = Animation(7, 1.0f);
+        enemyAnims[ANIM_ENEMY_HIT] = Animation(2, 0.5f);
+        enemyAnims[ANIM_ENEMY_DEAD] = Animation(4, 0.7f);
 
         // player
         idleTexture = loadTexture(state.renderer, "./assets/prototype/HMMIdleStaff.png");
@@ -149,6 +162,12 @@ struct Resources {
         // bullets
         bulletTexture = loadTexture(state.renderer, "./assets/bullet.png");
         bulletHitTexture = loadTexture(state.renderer, "./assets/bullet_hit.png");
+
+        // enemy
+        enemyIdleTexture = loadTexture(state.renderer, "./assets/skeleton/Idle.png");
+        enemyWalkTexture = loadTexture(state.renderer, "./assets/skeleton/Walk.png");
+        enemyDeadTexture = loadTexture(state.renderer, "./assets/skeleton/Dead.png");
+        enemyHitTexture = loadTexture(state.renderer, "./assets/skeleton/Hurt.png");
     }
     void unload() {
         for (auto *texture : textures) {
@@ -359,8 +378,15 @@ int main(int argc, char *argv[]) {
         // draw all objects
         for (std::vector<GameObject> &layer : gs.layers) {
             for (GameObject &obj : layer) {
-                const float srcSize = obj.type == ObjectType::PLAYER ? 256 : TILE_SIZE;
-                const float destSize = obj.type == ObjectType::PLAYER ? 64 : TILE_SIZE;
+                float srcSize = TILE_SIZE;
+                float destSize = TILE_SIZE;
+                if (obj.type == ObjectType::PLAYER) {
+                    srcSize = 256;
+                    destSize = 64;
+                } else if (obj.type == ObjectType::ENEMY) {
+                    srcSize = 128;
+                    destSize = 128;
+                }
                 drawObject(state, gs, obj, srcSize, destSize, deltaTime);
             }
         }
@@ -919,6 +945,22 @@ void loadMap(
                 gs.layers[LAYER_IDX_LEVEL].push_back(obj);
                 break;
             }
+            case 3: // enemy
+            {
+                GameObject obj = createObject(
+                    state,
+                    row,
+                    col,
+                    ObjectType::ENEMY,
+                    res.enemyIdleTexture);
+                obj.animations = res.enemyAnims;
+                obj.currentAnimation = res.ANIM_ENEMY_IDLE;
+                obj.dynamic = true;
+                obj.collider = {50, 70, 20, 58};
+
+                gs.layers[LAYER_IDX_CHARACTERS].push_back(obj);
+                break;
+            }
             case 4: // player
             {
                 // create the player
@@ -974,7 +1016,7 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
      */
     short map[MAP_ROWS][MAP_COLS] = {
         // clang-format off
-        {0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,3,4,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,2,2,0,0,0,0,0,2,0,2,2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
