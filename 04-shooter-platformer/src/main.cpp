@@ -207,7 +207,7 @@ void handleKeyInput(
     SDL_Scancode key,
     bool keyDown);
 void drawParallaxBackground(
-    SDLState &state,
+    const SDLState &state,
     SDL_Texture *texture,
     float xVelocity,
     float &scrollPos,
@@ -707,7 +707,7 @@ void update(
             obj.texture = res.enemyWalkTexture;
             glm::vec2 playerDir = gs.player().position - obj.position;
             // check if player is close, starts walking
-            if (glm::length(playerDir) < 200) {
+            if (glm::length(playerDir) < 400) {
                 currentDirection = playerDir.x < 0 ? -1 : 1;
                 obj.acceleration = glm::vec2(100, 0);
             } else {
@@ -1074,7 +1074,7 @@ void loadMap(
                 obj.currentAnimation = res.ANIM_ENEMY_IDLE;
                 obj.dynamic = true;
                 obj.collider = {50, 70, 20, 58};
-                obj.maxSpeedX = 100;
+                obj.maxSpeedX = 50;
 
                 gs.layers[LAYER_IDX_CHARACTERS].push_back(obj);
                 break;
@@ -1136,7 +1136,7 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
         // clang-format off
         {0,0,0,0,0,3,4,0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,2,2,0,0,0,0,0,2,0,2,2,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
@@ -1147,7 +1147,7 @@ void createTiles(const SDLState &state, GameState &gs, Resources &res) {
         // clang-format off
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+        {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,6,6,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,6,6,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
         {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -1205,14 +1205,14 @@ void handleKeyInput(
 }
 
 void drawParallaxBackground(
-    SDLState &state,
+    const SDLState &state,
     SDL_Texture *texture,
     float xVelocity,
     float &scrollPos,
     float scrollFactor,
     float deltaTime) {
 
-    scrollPos -= xVelocity * scrollFactor * deltaTime;
+    scrollPos -= (xVelocity)*scrollFactor * deltaTime;
 
     if (scrollPos <= -texture->w) {
         scrollPos = 0;
@@ -1224,5 +1224,7 @@ void drawParallaxBackground(
     // dstrect.
     SDL_RenderTexture(state.renderer, texture, NULL, &dest);
     dest.x += state.logW;
+    SDL_RenderTexture(state.renderer, texture, NULL, &dest);
+    dest.x += -state.logW * 2;
     SDL_RenderTexture(state.renderer, texture, NULL, &dest);
 }
