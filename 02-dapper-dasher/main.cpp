@@ -307,7 +307,7 @@ int main() {
     }
 
     if (!dead) {
-      // can only jump when on the ground
+      // can only jump when on the ground, applies all velocity only once
       if (onTheGround && IsKeyDown(KEY_SPACE)) {
         velocityY += jumpingVelocity;
         std::cout << "triggered jump" << std::endl;

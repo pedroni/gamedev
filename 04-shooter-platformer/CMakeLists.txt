@@ -20,6 +20,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL3 REQUIRED sdl3)
 pkg_check_modules(SDL3_IMAGE REQUIRED sdl3-image)
+pkg_check_modules(SDL2_MIXER REQUIRED SDL2_mixer)
 
 # Find GLM
 find_package(glm REQUIRED)
@@ -32,16 +33,17 @@ set(SOURCES
 # Create executable
 add_executable(mygame ${SOURCES})
 
-# Link SDL3 and GLM
-target_link_directories(mygame PRIVATE ${SDL3_IMAGE_LIBRARY_DIRS})
-target_link_libraries(mygame PRIVATE ${SDL3_IMAGE_LIBRARIES} glm::glm)
+# Link SDL3, SDL2_mixer and GLM
+target_link_directories(mygame PRIVATE ${SDL3_IMAGE_LIBRARY_DIRS} ${SDL2_MIXER_LIBRARY_DIRS})
+target_link_libraries(mygame PRIVATE ${SDL3_IMAGE_LIBRARIES} ${SDL2_MIXER_LIBRARIES} glm::glm)
 
 # Include directories
 target_include_directories(mygame PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${SDL3_IMAGE_INCLUDE_DIRS}
     ${SDL3_INCLUDE_DIRS}
+    ${SDL2_MIXER_INCLUDE_DIRS}
     /opt/homebrew/opt/glm/include
 )
 
-target_compile_options(mygame PRIVATE ${SDL3_CFLAGS_OTHER} ${SDL3_IMAGE_CFLAGS_OTHER})
+target_compile_options(mygame PRIVATE ${SDL3_CFLAGS_OTHER} ${SDL3_IMAGE_CFLAGS_OTHER} ${SDL2_MIXER_CFLAGS_OTHER})
